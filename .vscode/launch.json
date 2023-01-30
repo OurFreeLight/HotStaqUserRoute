@@ -1,0 +1,23 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Run Route Tests",
+			"skipFiles": [
+				"<node_internals>/**"
+			],
+			"program": "${workspaceFolder}/build/scaffolding/cli.js",
+			"args": [
+				"--dev",
+				"--env-file", ".env",
+				"--hotsite", "./HotSite.json",
+				"run",
+				"--server-type", "api",
+				"--tester-test-timeout", "2000",
+				"--api-test"
+			]
+		}
+	]
+}

@@ -1,0 +1,35 @@
+{
+	"name": "user-route",
+	"server": {
+		"globalApi": "AppAPI",
+		"serveDirectories": [
+			{
+				"route": "/",
+				"localPath": "./public/"
+			}
+		]
+	},
+	"testing": {
+		"web": {
+			"testerAPIUrl": "http://127.0.0.1:8182"
+		},
+		"api": {
+			"testerAPIUrl": "http://127.0.0.1:8182",
+			"launchpadUrl": "http://127.0.0.1:5000",
+			"maps": [
+				"AppAPI"
+			]
+		}
+	},
+	"apis": {
+		"AppAPI": {
+			"jsapi": "./js/admin-panel.js",
+			"libraryName": "admin-panelWeb",
+			"apiName": "AppAPI",
+			"filepath": "./build/scaffolding/AppAPI.js",
+			"map": [
+				"api:users -> register -> registerTest -> login -> loginTest"
+			]
+		}
+	}
+}
