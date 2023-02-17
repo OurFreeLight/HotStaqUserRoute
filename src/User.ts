@@ -37,6 +37,10 @@ export interface IUser
 	 */
 	passwordSalt?: string;
 	/**
+	 * The verification code.
+	 */
+	verifyCode?: string;
+	/**
 	 * The registered date.
 	 */
 	registeredDate?: Date;
@@ -56,6 +60,25 @@ export interface IUser
      * The player's JWT token.
      */
     jwtToken?: string;
+}
+
+/**
+ * The user's JWT token.
+ */
+export interface IJWTToken
+{
+	/**
+	 * The user information.
+	 */
+	user: IUser;
+	/**
+	 * The user's IP that was used to login.
+	 */
+	ip: string;
+	/**
+	 * The user's login id in the database.
+	 */
+	userLoginId: string;
 }
 
 /**
@@ -92,6 +115,10 @@ export class User implements IUser
 	 */
 	passwordSalt: string;
 	/**
+	 * The verification code.
+	 */
+	verifyCode: string;
+	/**
 	 * The registered date.
 	 */
 	registeredDate: Date;
@@ -114,7 +141,56 @@ export class User implements IUser
 	/**
 	 * The secret key used for the JWT generation.
 	 */
-	protected static jwtSecretKey: string = process.env["JWT_SECRET_KEY"] || "";
+	static jwtSecretKey: string = process.env["JWT_SECRET_KEY"] || "";
+	/**
+	 * The event to fire when a user is registered into the database.
+	 * This must return a user, WITH A USER ID SET.
+	 */
+	static onRegisterInsert: (user: User, passwordHash: string, passwordSalt: string, verificationCode: string, 
+		verified: number) => Promise<User> = null;
+	/**
+	 * The event to fire when a user has successfully logged in, and their 
+	 * password has been rehashed, and being updated in the database.
+	 */
+	static onLoginRegenPasswordUpdate: (user: User, passwordHash: string, passwordSalt: string) => Promise<void> = null;
+	/**
+	 * The event to fire when a user has successfully logged in, and their 
+	 * login info is being inserted into the database. The user login id 
+	 * of the new record is returned to be added to the issued JWT token.
+	 */
+	static onLoginInsertUserLogin: (user: User, ip: string) => Promise<string> = null;
+	/**
+	 * The event to fire when a user has successfully logged out, and their 
+	 * JWT token invalidated. This updates the user login record in the database
+	 * to indicate when the user has logged out.
+	 */
+	static onLogoutUpdateUserLogin: (user: IUser, userLoginId: string) => Promise<void> = null;
+	/**
+	 * The event to fire when a user is being verified. This updates the user's 
+	 * record in the database to indicate that the user has been verified.
+	 */
+	static onVerifyUserUpdate: (user: User) => Promise<void> = null;
+	/**
+	 * The event to fire when a user's forgotten password has started. This updates 
+	 * the user's verifyCode in the database so the user can update their password.
+	 */
+	static onForgotPasswordUpdate: (user: User) => Promise<void> = null;
+	/**
+	 * The event to fire when a user's forgotten password has been reset. This updates 
+	 * the user's new password has and salt in the database.
+	 */
+	static onResetForgottenPasswordUpdate: (user: User, 
+		passwordHash: string, passwordSalt: string) => Promise<void> = null;
+	/**
+	 * The event to fire when a user is being retrieved from the database by their email.
+	 * This needs to return the raw user data from the database. If this returns null, 
+	 * this indicates the user was not found.
+	 */
+	static onGetUserSelect: (email: string) => Promise<any> = null;
+	/**
+	 * The list of invalid JWT tokens. If the token is set to true, it is invalid.
+	 */
+	static invalidJWTTokens: { [jwtToken: string]: boolean } = {};
 
 	constructor (user: IUser = {})
 	{
@@ -125,6 +201,7 @@ export class User implements IUser
 		this.email = user.email || "";
 		this.password = user.password || "";
 		this.passwordSalt = user.passwordSalt || "";
+		this.verifyCode = user.verifyCode || "";
 		this.registeredDate = user.registeredDate || null;
 		this.loginDate = user.loginDate || null
 		this.verified = user.verified || false;
@@ -145,17 +222,27 @@ export class User implements IUser
 					email          VARCHAR(256)   DEFAULT '',
 					password       VARCHAR(256)   DEFAULT '',
 					passwordSalt   VARCHAR(256)   DEFAULT '',
+					verifyCode     VARCHAR(256)   DEFAULT '',
 					verified       TINYINT(1)     DEFAULT '0',
 					registeredDate DATETIME       DEFAULT NOW(),
 					enabled        TINYINT(1)     DEFAULT '1',
 					PRIMARY KEY (id)
 				)`);
+		await db.query (
+			`create table if not exists userLogins (
+					id             BINARY(16)     NOT NULL,
+					userId         BINARY(16)     DEFAULT '',
+					ip             VARCHAR(256)   DEFAULT '',
+					loginDate      DATETIME       DEFAULT NOW(),
+					logOutDate     DATETIME       DEFAULT NULL,
+					PRIMARY KEY (id)
+				)`);
 
 		if (debug == true)
 		{
-			let results: any = await db.queryOne (`select COUNT(*) from users;`);
+			let results: MySQLResults = await db.queryOne (`select COUNT(*) from users;`);
 
-			if (results["COUNT(*)"] < 1)
+			if (results.results["COUNT(*)"] < 1)
 			{
 				let testPlayers = [
 						new User ({
@@ -206,25 +293,17 @@ export class User implements IUser
 
 	/**
 	 * Convert a binary UUID to a string UUID.
-	 * 
-	 * Taken from:
-	 * https://github.com/odo-network/binary-uuid/blob/master/src/binary-uuid.ts
 	 */
-	static fromBinaryToUUID (buf: Buffer): string
+	static fromBinaryToUUID (buffer: Buffer): string
 	{
-		return [
-				buf.toString('hex', 4, 8),
-				buf.toString('hex', 2, 4),
-				buf.toString('hex', 0, 2),
-				buf.toString('hex', 8, 10),
-				buf.toString('hex', 10, 16),
-			].join('-');
+		const hex: string = buffer.toString ('hex');
+		return `${hex.substr (0, 8)}-${hex.substr (8, 4)}-${hex.substr (12, 4)}-${hex.substr (16, 4)}-${hex.substr (20)}`;
 	}
 
 	/**
 	 * Register a user.
 	 */
-	async register (db: HotDBMySQL): Promise<{ userId: string; }>
+	async register (db: HotDBMySQL): Promise<User>
 	{
 		let tempUser: User | null = await User.getUser (db, this.email);
 
@@ -238,6 +317,7 @@ export class User implements IUser
 		this.password = "";
 
 		let verified: number = 0;
+		let verificationCode: string = "";
 
 		if (this.verified === true)
 			verified = 1;
@@ -248,28 +328,100 @@ export class User implements IUser
 				verified = 1;
 		}
 
-		let result: any = await db.query (
-			`INSERT INTO users (id, firstName, lastName, email, password, passwordSalt, verified) VALUES (UUID(), ?, ?, ?, ?, ?) returning id;`, 
-			[this.firstName, this.lastName, this.email, hash, salt, verified]);
+		if (verified === 0)
+			verificationCode = await User.createRandomHash (new Date ().toString ());
+
+		this.verifyCode = verificationCode;
+
+		if (User.onRegisterInsert != null)
+		{
+			let user: User = await User.onRegisterInsert (this, hash, salt, verificationCode, verified);
+
+			return (user);
+		}
+
+		let result: any = await db.queryOne (
+			`INSERT INTO users (id, firstName, lastName, email, password, passwordSalt, verifyCode, verified) 
+			VALUES (UNHEX(REPLACE(UUID(),'-','')), ?, ?, ?, ?, ?, ?, ?) returning id;`, 
+			[this.firstName, this.lastName, this.email, hash, salt, verificationCode, verified]);
 
 		if (result.error != null)
 			throw new Error (result.error);
 
-		let idRaw: Buffer = result[0]["id"];
+		let idRaw: Buffer = result.results["id"];
 		let userId: string = User.fromBinaryToUUID (idRaw);
 
-		return ({ userId: userId });
+		this.id = userId;
+
+		return (this);
+	}
+
+	/**
+	 * Get a user's logins. Intended for admin usage. 
+	 * DOES NOT check any JWT tokens or any other user permissions.
+	 */
+	static async getUserLogins (db: HotDBMySQL, user: User, offset: number = 0, limit: number = 1): Promise<any[]>
+	{
+		let result: any = await db.query (
+			`SELECT HEX(id) as id, HEX(userId) as userId, ip, loginDate, logOutDate 
+			FROM userLogins WHERE userId = UNHEX(REPLACE(?, '-', '')) ORDER BY 
+			loginDate DESC LIMIT ${limit} OFFSET ${offset};`,
+				[user.id]);
+
+		if (result.error != null)
+			throw new Error (result.error);
+
+		return (result.results);
+	}
+
+	/**
+	 * Edit a user. Intended for admin usage. DOES NOT check any JWT tokens
+	 * or any other user permissions.
+	 */
+	static async editUser (db: HotDBMySQL, user: User): Promise<void>
+	{
+		let result: any = await db.queryOne (
+			`UPDATE users SET firstName = ?, lastName = ?, email = ?, verified = ? WHERE id = UNHEX(REPLACE(?, '-', ''));`,
+			[user.firstName, user.lastName, user.email, user.verified, user.id]);
+
+		if (result.error != null)
+			throw new Error (result.error);
+	}
+
+	/**
+	 * Delete a user. Intended for admin usage. DOES NOT check any JWT tokens
+	 * or any other user permissions.
+	 */
+	static async deleteUser (db: HotDBMySQL, user: User): Promise<void>
+	{
+		let result: any = await db.queryOne (
+			`DELETE FROM users WHERE id = UNHEX(REPLACE(?, '-', ''));`,
+			[user.id]);
+
+		if (result.error != null)
+			throw new Error (result.error);
 	}
 
 	/**
 	 * Login.
+	 * 
+	 * @param getPassword If set to true, this will return the user's password and salt.
+	 * ONLY USE THIS WHEN NECESSARY. I HAVE NO IDEA WHY THIS WOULD EVER BE NECESSARY, 
+	 * BUT I'M PUTTING IT HERE JUST IN CASE.
 	 */
-	static async login (db: HotDBMySQL, ip: string, email: string, password: string): Promise<User>
+	static async login (db: HotDBMySQL, ip: string, email: string, 
+		password: string, getPassword: boolean = false): Promise<User>
 	{
 		let foundUser: User = await User.getUser (db, email, true);
 
 		if (foundUser == null)
 			throw new Error (`Wrong email or password.`);
+
+		if (foundUser.enabled === false)
+			throw new Error (`This account has been disabled.`);
+
+		if (foundUser.verified === false)
+			throw new Error (`This account has not been verified yet.`);
 
 		const cmp: boolean = await bcrypt.compare (password, foundUser.password);
 
@@ -289,52 +441,200 @@ export class User implements IUser
 			const salt: string = await User.generateSalt ();
 			const hash: string = await User.generateHash (password, salt);
 
-			let result = await db.query (`update users set password = ?, passwordSalt = ? where email = ?`, 
-											[hash, salt, email]);
+			if (User.onLoginRegenPasswordUpdate != null)
+				await User.onLoginRegenPasswordUpdate (foundUser, hash, salt);
+			else
+			{
+				let result = await db.query (`update users set password = ?, passwordSalt = ? where email = ?`, 
+												[hash, salt, email]);
+
+				if (result.error != null)
+					throw new Error (result.error);
+			}
+		}
+
+		if (getPassword === false)
+		{
+			password = "";
+			foundUser.password = "";
+			foundUser.passwordSalt = "";
+
+			delete foundUser.password;
+			delete foundUser.passwordSalt;
+		}
+
+		let userLoginId: string = "";
+
+		if (User.onLoginInsertUserLogin != null)
+			userLoginId = await User.onLoginInsertUserLogin (foundUser, ip);
+		else
+		{
+			let result: any = await db.queryOne (
+`INSERT INTO userLogins (id, userId, ip) VALUES (UNHEX(REPLACE(UUID(),'-','')), UNHEX(REPLACE(?,'-','')), ?) returning id;`, 
+				[foundUser.id, ip]);
 
 			if (result.error != null)
 				throw new Error (result.error);
+
+			let idRaw: Buffer = result.results["id"];
+			userLoginId = User.fromBinaryToUUID (idRaw);
 		}
 
-		password = "";
-		foundUser.password = "";
-		foundUser.passwordSalt = "";
-
-		delete foundUser.password;
-		delete foundUser.passwordSalt;
-
-		const dateStr: string = new Date ().toString ();
-		foundUser.jwtToken = await User.generateJWTToken (foundUser);
+		foundUser.jwtToken = await User.generateJWTToken ({ user: foundUser, ip: ip, userLoginId: userLoginId });
 
 		return (foundUser);
 	}
 
 	/**
-	 * Get user. This WILL NOT return the current user's api key or secret.
+	 * Log out.
+	 */
+	static async logOut (db: HotDBMySQL, jwtToken: string): Promise<void>
+	{
+		let decoded: IJWTToken = await User.decodeJWTToken (jwtToken);
+		let user: IUser = decoded.user;
+		let userLoginId: string = decoded.userLoginId;
+
+		User.invalidJWTTokens[jwtToken] = true;
+
+		if (User.onLogoutUpdateUserLogin != null)
+			await User.onLogoutUpdateUserLogin (user, userLoginId);
+		else
+		{
+			let result = await db.query (
+				`update userLogins set logOutDate = NOW() where id = UNHEX(REPLACE(?,'-',''))`, 
+					[userLoginId]);
+
+			if (result.error != null)
+				throw new Error (result.error);
+		}
+	}
+
+	/**
+	 * Verify a user.
+	 */
+	static async verifyUser (db: HotDBMySQL, email: string, verificationCode: string): Promise<void>
+	{
+		let foundUser: User = await User.getUser (db, email, true);
+
+		if (foundUser == null)
+			throw new Error (`User not found.`);
+
+		if (foundUser.verifyCode !== verificationCode)
+			throw new Error (`Unable to verify user. Incorrect verification code.`);
+
+		if (User.onVerifyUserUpdate != null)
+			await User.onVerifyUserUpdate (foundUser);
+		else
+		{
+			let result = await db.query (
+				`update users set verified = 1 where email = ?`, 
+					[email]);
+
+			if (result.error != null)
+				throw new Error (result.error);
+		}
+	}
+
+	/**
+	 * Start the reset of a user's password.
+	 */
+	static async forgotPassword (db: HotDBMySQL, jwtToken: string): Promise<string>
+	{
+		let decoded: IJWTToken = await User.decodeJWTToken (jwtToken);
+		let user: User = new User (decoded.user);
+
+		user.verifyCode = await User.createRandomHash (new Date ().toString ());
+
+		if (User.onForgotPasswordUpdate != null)
+			await User.onForgotPasswordUpdate (user);
+		else
+		{
+			let result = await db.query (
+				`update users set verifyCode = ? where id = ?`,
+					[user.verifyCode, user.id]);
+
+			if (result.error != null)
+				throw new Error (result.error);
+		}
+
+		return (user.verifyCode);
+	}
+
+	/**
+	 * Reset a user's password.
+	 */
+	static async resetForgottenPassword (db: HotDBMySQL, email: string, 
+		verificationCode: string, newPassword: string): Promise<void>
+	{
+		let foundUser: User = await User.getUser (db, email);
+
+		if (foundUser == null)
+			throw new Error (`User not found.`);
+
+		if (foundUser.verifyCode !== verificationCode)
+			throw new Error (`Unable to reset password. Incorrect verification code.`);
+
+		const salt: string = await User.generateSalt ();
+		const hash: string = await User.generateHash (newPassword, salt);
+
+		if (User.onResetForgottenPasswordUpdate != null)
+			await User.onResetForgottenPasswordUpdate (foundUser, hash, salt);
+		else
+		{
+			// Update the user's password in the database.
+			let result = await db.query (
+				`update users set password = ?, passwordSalt = ?, verifyCode = null where id = ?`,
+					[hash, salt, foundUser.id]);
+
+			if (result.error != null)
+				throw new Error (result.error);
+		}
+	}
+
+	/**
+	 * Get user by their email. This WILL NOT return the current user's api key or secret.
+	 * 
+	 * @param getPassword If set to true, this will return the user's password and salt.
+	 * ONLY USE THIS WHEN NECESSARY.
 	 */
 	static async getUser (db: HotDBMySQL, email: string, getPassword: boolean = false): Promise<User | null>
 	{
-		let result = await db.queryOne (`select * from users where email = ?;`, [email]);
+		let rawDBResults: any = null;
 
-		if (result.error != null)
-			return (null);
+		if (User.onGetUserSelect != null)
+		{
+			rawDBResults = await User.onGetUserSelect (email);
 
-		if (result.results == null)
-			return (null);
+			if (rawDBResults == null)
+				return (null);
+		}
+		else
+		{
+			let result: MySQLResults = await db.queryOne (`select * from users where email = ?;`, [email]);
 
-		let userId: string = User.fromBinaryToUUID (result.results["id"]);
+			if (result.error != null)
+				return (null);
+
+			if (result.results == null)
+				return (null);
+
+			rawDBResults = result.results;
+		}
+
+		let userId: string = User.fromBinaryToUUID (rawDBResults["id"]);
 
 		let user: User = new User ({
 				id: userId,
-				firstName: result.results["firstName"],
-				lastName: result.results["lastName"],
-				email: result.results["email"],
-				password: result.results["password"],
-				passwordSalt: result.results["passwordSalt"],
-				registeredDate: result.results["registeredDate"],
-				loginDate: result.results["loginDate"],
-				enabled: result.results["enabled"], 
-				verified: result.results["verified"]
+				firstName: rawDBResults["firstName"],
+				lastName: rawDBResults["lastName"],
+				email: rawDBResults["email"],
+				password: rawDBResults["password"],
+				passwordSalt: rawDBResults["passwordSalt"],
+				verifyCode: rawDBResults["verifyCode"],
+				registeredDate: rawDBResults["registeredDate"],
+				loginDate: rawDBResults["loginDate"],
+				enabled: rawDBResults["enabled"], 
+				verified: rawDBResults["verified"]
 			});
 
 		// Only get the password if explicitly told to do so.
@@ -369,7 +669,7 @@ export class User implements IUser
 	/**
 	 * Generate a JWT Token.
 	 */
-	static async generateJWTToken (jsonObj: any): Promise<string>
+	static async generateJWTToken (jsonObj: any, expiresIn: string = "30 days"): Promise<string>
 	{
 		if (User.jwtSecretKey === "")
 			throw new Error (`A JWT secret key is required to run!`);
@@ -378,7 +678,7 @@ export class User implements IUser
 			{
 				const finalJSONObj = JSON.parse (JSON.stringify (jsonObj));
 
-				jwt.sign (finalJSONObj, User.jwtSecretKey, { expiresIn: "30 days" }, (err: Error, encoded: string) =>
+				jwt.sign (finalJSONObj, User.jwtSecretKey, { expiresIn: expiresIn }, (err: Error, encoded: string) =>
 					{
 						if (err != null)
 							throw err;
@@ -391,14 +691,20 @@ export class User implements IUser
 	/**
 	 * Verify and decode a JWT Token.
 	 */
-	static async decodeJWTToken (token: string): Promise<any>
+	static async decodeJWTToken (jwtToken: string): Promise<any>
 	{
 		if (User.jwtSecretKey === "")
 			throw new Error (`A JWT secret key is required to run!`);
 
+		if (User.invalidJWTTokens[jwtToken] != null)
+		{
+			if (User.invalidJWTTokens[jwtToken] === true)
+				throw new Error (`JWT token has been invalidated!`);
+		}
+
 		return (new Promise<string> ((resolve, reject) =>
 			{
-				jwt.verify (token, User.jwtSecretKey, (err: Error, decoded: string) =>
+				jwt.verify (jwtToken, User.jwtSecretKey, (err: Error, decoded: string) =>
 					{
 						if (err != null)
 							throw new Error (`Unable to verify JWT token!`);

@@ -1,7 +1,9 @@
 import { UserRoute } from './UserRoute';
-import { User } from './User';
+import { IUser, User, IJWTToken } from './User';
 
 export {
     UserRoute,
+    IUser,
+    IJWTToken,
     User
 };
