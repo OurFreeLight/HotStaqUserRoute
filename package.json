@@ -1,13 +1,14 @@
 {
   "name": "@hotstaq/userroute",
   "description": "A user route for HotStaq. Allows users to be created/edited/deleted securely.",
-  "version": "0.3.0",
+  "version": "0.3.4",
   "main": "build/src/index.js",
   "scripts": {
     "test": "hotstaq --dev --env-file .env run --server-type api --api-test",
     "build": "tsc --build ./tsconfig.json",
     "build-web": "hotstaq generate",
-    "build-doc": "hotstaq generate --generate-type openapi-3.0.0-yaml"
+    "build-doc": "hotstaq generate --generate-type openapi-3.0.0-yaml",
+    "prepublishOnly": "npm run build-doc && npm run build && npm run build-web"
   },
   "keywords": [],
   "author": "FreeLight, Inc",
@@ -31,6 +32,7 @@
     "@types/node-fetch": "^2.6.1",
     "@types/selenium-webdriver": "^4.1.5",
     "@types/uuid": "^8.3.4",
-    "ts-loader": "^7.0.5"
+    "ts-loader": "^7.0.5",
+    "tslib": "^2.5.0"
   }
 }

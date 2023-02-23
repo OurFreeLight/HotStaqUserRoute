@@ -19,10 +19,22 @@ export class UserRoute extends HotRoute
 	 * this will call User.syncTables by default.
 	 */
 	onRegisteringRoute: ((db: HotDBMySQL) => Promise<void>);
+	/**
+	 * Test user data to use for executing tests.
+	 */
+	testUser: {
+			email: string;
+			password: string;
+		};
 
 	constructor (api: HotAPI)
 	{
 		super (api.connection, "users");
+
+		this.testUser = {
+				email: "test3@freelight.org",
+				password: "se45se45sdfrg3456"
+			};
 
 		this.onRegisteringRoute = async (db: HotDBMySQL) =>
 			{
@@ -50,6 +62,9 @@ export class UserRoute extends HotRoute
 
 						if (this.db.connectionStatus !== ConnectionStatus.Connected)
 							return (true);
+
+						if (User.jwtSecretKey === "")
+							throw new Error (`User.jwtSecretKey cannot be an empty string. Please set it to a valid secret key, or set the environemnt variable JWT_SECRET_KEY.`);
 
 						if (this.onRegisteringRoute != null)
 							await this.onRegisteringRoute (this.db);
@@ -86,7 +101,7 @@ export class UserRoute extends HotRoute
 					"registerTest",
 					async (driver: HotTestDriver): Promise<any> =>
 					{
-						let tempUser: User = await User.getUser (this.db, "test3@freelight.org");
+						let tempUser: User = await User.getUser (this.db, this.testUser.email);
 				
 						if (tempUser != null)
 							await User.deleteUser (this.db, tempUser);
@@ -94,15 +109,19 @@ export class UserRoute extends HotRoute
 						// @ts-ignore
 						let resp = await api.users.register ({
 								user: {
-									"email": "test3@freelight.org",
-									"password": "se45se45sdfrg3456"
+									"email": this.testUser.email,
+									"password": this.testUser.password
 								}
 							});
+
+						driver.assert (resp.error == null, "User registration did not complete!");
 
 						driver.persistentData.verifyCode = resp.verifyCode;
 
 						driver.assert (driver.persistentData.verifyCode !== "", "User registration did not complete!");
-						/// @todo Check the database and make sure the user is there.
+
+						tempUser = await User.getUser (this.db, this.testUser.email);
+						driver.assert (tempUser != null, "User registration did not complete!");
 					}
 				]
 			});
@@ -129,10 +148,11 @@ export class UserRoute extends HotRoute
 					{
 						// @ts-ignore
 						let resp = await api.users.verifyUser ({
-								"email": "test3@freelight.org",
+								"email": this.testUser.email,
 								"verificationCode": driver.persistentData.verifyCode
 							});
 
+						driver.assert (resp.error == null, "User verification did not complete!");
 						driver.assert (resp === true, "User verification did not complete!");
 						/// @todo Check the database and make sure the user is there.
 					}
@@ -195,11 +215,12 @@ export class UserRoute extends HotRoute
 						// @ts-ignore
 						let resp = await api.users.login ({
 								user: {
-									"email": "test3@freelight.org",
-									"password": "se45se45sdfrg3456"
+									"email": this.testUser.email,
+									"password": this.testUser.password
 								}
 							});
 
+						driver.assert (resp.error == null, "User login did not complete!");
 						driver.persistentData.jwtToken = resp.jwtToken;
 
 						driver.assert (resp.password == null, "User object returning password!");
@@ -210,10 +231,10 @@ export class UserRoute extends HotRoute
 					"userLoginTest",
 					async (driver: HotTestDriver): Promise<any> =>
 					{
-						let tempUser: User = await User.getUser (this.db, "test3@freelight.org");
+						let tempUser: User = await User.getUser (this.db, this.testUser.email);
 				
 						if (tempUser == null)
-							throw new Error (`User test3@freelight.org not found!`);
+							throw new Error (`User ${this.testUser.email} not found!`);
 
 						let logins: any[] = await User.getUserLogins (this.db, tempUser);
 
@@ -269,10 +290,10 @@ export class UserRoute extends HotRoute
 						"type": "object",
 						"required": true,
 						"parameters": {
-							"jwtToken": {
+							"email": {
 									"type": "string",
 									"required": true,
-									"description": "The user's JWT token to verify."
+									"description": "The user's email to use to reset the password."
 								}
 							}
 					}
@@ -284,9 +305,10 @@ export class UserRoute extends HotRoute
 					{
 						// @ts-ignore
 						let resp = await api.users.forgotPassword ({
-								jwtToken: driver.persistentData.jwtToken
+								email: this.testUser.email
 							});
 
+						driver.assert (resp.error == null, "User forgotten password did not complete!");
 						driver.persistentData.verificationCode = resp;
 
 						driver.assert (resp !== "", "User not able to start forgotten password process!");
@@ -302,12 +324,22 @@ export class UserRoute extends HotRoute
 						"type": "object",
 						"required": true,
 						"parameters": {
-							"jwtToken": {
-									"type": "string",
-									"required": true,
-									"description": "The user's JWT token to verify."
-								}
+							"email": {
+								"type": "string",
+								"required": true,
+								"description": "The user's email to reset."
+							},
+							"verificationCode": {
+								"type": "string",
+								"required": true,
+								"description": "The user's verification code to authorize the password reset."
+							},
+							"newPassword": {
+								"type": "string",
+								"required": true,
+								"description": "The new password to set."
 							}
+						}
 					}
 				},
 				"returns": "Returns true when the user has been logged out successfully.",
@@ -317,12 +349,13 @@ export class UserRoute extends HotRoute
 					{
 						// @ts-ignore
 						let resp = await api.users.verifyForgotPasswordCode ({
-								email: "test3@freelight.org",
+								email: this.testUser.email,
 								verificationCode: driver.persistentData.verificationCode,
 								newPassword: "asw45as4we5se45se45"
 							});
 
-						driver.assert (resp === true, "User not able to start forgotten password process!");
+						driver.assert (resp.error == null, "User verify forgotten password did not complete!");
+						driver.assert (resp === true, "User not able to start verify forgotten password process!");
 					}
 				]
 			});
@@ -394,9 +427,9 @@ export class UserRoute extends HotRoute
 	 */
 	protected async forgotPassword (req: ServerRequest): Promise<any>
 	{
-		const jwtToken: string = HotStaq.getParam ("jwtToken", req.jsonObj);
+		const email: string = HotStaq.getParam ("email", req.jsonObj);
 
-		let verificationCode: string = await User.forgotPassword (this.db, jwtToken);
+		let verificationCode: string = await User.forgotPassword (this.db, email);
 
 		return (verificationCode);
 	}

@@ -538,10 +538,12 @@ export class User implements IUser
 	/**
 	 * Start the reset of a user's password.
 	 */
-	static async forgotPassword (db: HotDBMySQL, jwtToken: string): Promise<string>
+	static async forgotPassword (db: HotDBMySQL, email: string): Promise<string>
 	{
-		let decoded: IJWTToken = await User.decodeJWTToken (jwtToken);
-		let user: User = new User (decoded.user);
+		let user: User = await User.getUser (db, email);
+
+		if (user == null)
+			throw new Error (`User not found.`);
 
 		user.verifyCode = await User.createRandomHash (new Date ().toString ());
 
