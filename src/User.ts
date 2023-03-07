@@ -214,6 +214,9 @@ export class User implements IUser
 	 */
 	static async syncTables (db: HotDBMySQL, debug: boolean): Promise<void>
 	{
+		if (db == null)
+			throw new Error ("UserRoute: Database is not connected");
+
 		await db.query (
 			`create table if not exists users (
 					id             BINARY(16)     NOT NULL,
@@ -403,16 +406,26 @@ export class User implements IUser
 	}
 
 	/**
-	 * Login.
+	 * Have a user authenticate and login.
 	 * 
+	 * @param db The connected database.
+	 * @param ip The IP address of the user. If this is a User object, it will not 
+	 * retreive the user from the database and instead use the user object provided.
+	 * @param email The user's email.
+	 * @param password The user's password.
 	 * @param getPassword If set to true, this will return the user's password and salt.
 	 * ONLY USE THIS WHEN NECESSARY. I HAVE NO IDEA WHY THIS WOULD EVER BE NECESSARY, 
 	 * BUT I'M PUTTING IT HERE JUST IN CASE.
 	 */
-	static async login (db: HotDBMySQL, ip: string, email: string, 
-		password: string, getPassword: boolean = false): Promise<User>
+	static async login (db: HotDBMySQL, ip: string | User, email?: string, 
+		password?: string, getPassword: boolean = false): Promise<User>
 	{
-		let foundUser: User = await User.getUser (db, email, true);
+		let foundUser: User = null;
+
+		if (typeof (ip) === "string")
+			foundUser = await User.getUser (db, email, true);
+		else
+			foundUser = ip;
 
 		if (foundUser == null)
 			throw new Error (`Wrong email or password.`);
@@ -422,6 +435,9 @@ export class User implements IUser
 
 		if (foundUser.verified === false)
 			throw new Error (`This account has not been verified yet.`);
+
+		if (typeof (ip) === "string")
+			foundUser.ip = ip;
 
 		const cmp: boolean = await bcrypt.compare (password, foundUser.password);
 
@@ -466,7 +482,7 @@ export class User implements IUser
 		let userLoginId: string = "";
 
 		if (User.onLoginInsertUserLogin != null)
-			userLoginId = await User.onLoginInsertUserLogin (foundUser, ip);
+			userLoginId = await User.onLoginInsertUserLogin (foundUser, foundUser.ip);
 		else
 		{
 			let result: any = await db.queryOne (
@@ -613,6 +629,9 @@ export class User implements IUser
 		else
 		{
 			let result: MySQLResults = await db.queryOne (`select * from users where email = ?;`, [email]);
+
+			if (result == null)
+				return (null);
 
 			if (result.error != null)
 				return (null);
