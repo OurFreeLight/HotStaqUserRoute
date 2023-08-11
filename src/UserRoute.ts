@@ -27,9 +27,9 @@ export class UserRoute extends HotRoute
 			password: string;
 		};
 
-	constructor (api: HotAPI)
+	constructor (api: HotAPI, route: string = "users")
 	{
-		super (api.connection, "users");
+		super (api.connection, route);
 
 		this.testUser = {
 				email: "test3@freelight.org",
@@ -46,33 +46,30 @@ export class UserRoute extends HotRoute
 				await User.syncTables (this.db, isDebug);
 			};
 
-		if (HotStaq.isWeb === false)
-		{
-			this.onRegister = async () =>
+		this.onRegister = async () =>
+			{
+				if (api.connection.type !== HotServerType.Generate)
 				{
-					if (api.connection.type !== HotServerType.Generate)
+					if (process.env["DATABASE_DISABLE"] != null)
 					{
-						if (process.env["DATABASE_DISABLE"] != null)
-						{
-							if (process.env["DATABASE_DISABLE"] === "1")
-								return (true);
-						}
-
-						this.db = (<HotDBMySQL>this.connection.api.db);
-
-						if (this.db.connectionStatus !== ConnectionStatus.Connected)
+						if (process.env["DATABASE_DISABLE"] === "1")
 							return (true);
-
-						if (User.jwtSecretKey === "")
-							throw new Error (`User.jwtSecretKey cannot be an empty string. Please set it to a valid secret key, or set the environemnt variable JWT_SECRET_KEY.`);
-
-						if (this.onRegisteringRoute != null)
-							await this.onRegisteringRoute (this.db);
 					}
 
-					return (true);
-				};
-		}
+					this.db = (<HotDBMySQL>this.connection.api.db);
+
+					if (this.db.connectionStatus !== ConnectionStatus.Connected)
+						return (true);
+
+					if (User.jwtSecretKey === "")
+						throw new Error (`User.jwtSecretKey cannot be an empty string. Please set it to a valid secret key, or set the environemnt variable JWT_SECRET_KEY.`);
+
+					if (this.onRegisteringRoute != null)
+						await this.onRegisteringRoute (this.db);
+				}
+
+				return (true);
+			};
 
 		this.addMethod ({
 				"name": "register",

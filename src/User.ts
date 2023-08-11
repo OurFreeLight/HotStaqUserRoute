@@ -17,6 +17,10 @@ export interface IUser
 	 */
 	id?: string;
 	/**
+	 * The user type.
+	 */
+	type?: string;
+	/**
 	 * The user's first name.
 	 */
 	firstName?: string;
@@ -56,10 +60,10 @@ export interface IUser
 	 * The player's ip.
 	 */
 	ip?: string;
-    /**
-     * The player's JWT token.
-     */
-    jwtToken?: string;
+	/**
+	 * The player's JWT token.
+	 */
+	jwtToken?: string;
 }
 
 /**
@@ -94,6 +98,10 @@ export class User implements IUser
 	 * The id.
 	 */
 	id: string;
+	/**
+	 * The user type.
+	 */
+	type: string;
 	/**
 	 * The user's first name.
 	 */
@@ -134,10 +142,10 @@ export class User implements IUser
 	 * The player's ip.
 	 */
 	ip: string;
-    /**
-     * The player's JWT token.
-     */
-    jwtToken: string;
+	/**
+	 * The player's JWT token.
+	 */
+	jwtToken: string;
 	/**
 	 * The secret key used for the JWT generation.
 	 */
@@ -196,6 +204,7 @@ export class User implements IUser
 	{
 		this.enabled = user.enabled || true;
 		this.id = user.id || "";
+		this.type = user.type || "user";
 		this.firstName = user.firstName || "";
 		this.lastName = user.lastName || "";
 		this.email = user.email || "";
@@ -220,6 +229,7 @@ export class User implements IUser
 		await db.query (
 			`create table if not exists users (
 					id             BINARY(16)     NOT NULL,
+					type           VARCHAR(256)   DEFAULT 'user',
 					firstName      VARCHAR(256)   DEFAULT '',
 					lastName       VARCHAR(256)   DEFAULT '',
 					email          VARCHAR(256)   DEFAULT '',
@@ -249,18 +259,25 @@ export class User implements IUser
 			{
 				let testPlayers = [
 						new User ({
-                            firstName: "John",
-                            lastName: "Doe",
-                            email: "test1@freelight.org",
-                            password: "a867h398jdg",
-                            verified: true
-                        }),
+							firstName: "John",
+							lastName: "Doe",
+							email: "test1@freelight.org",
+							password: "a867h398jdg",
+							verified: true
+						}),
 						new User ({
-                            firstName: "Jane",
-                            lastName: "Smith",
-                            email: "test2@freelight.org",
-                            password: "ai97w3a98w3498",
-                            verified: true })
+							firstName: "Jane",
+							lastName: "Smith",
+							email: "test2@freelight.org",
+							password: "ai97w3a98w3498",
+							verified: true }),
+						new User ({
+							type: "admin",
+							firstName: "Bob",
+							lastName: "Derp",
+							email: "admin1@freelight.org",
+							password: "a98j3w987aw3h47u",
+							verified: true })
 					];
 
 				for (let iIdx = 0; iIdx < testPlayers.length; iIdx++)
@@ -344,9 +361,9 @@ export class User implements IUser
 		}
 
 		let result: any = await db.queryOne (
-			`INSERT INTO users (id, firstName, lastName, email, password, passwordSalt, verifyCode, verified) 
-			VALUES (UNHEX(REPLACE(UUID(),'-','')), ?, ?, ?, ?, ?, ?, ?) returning id;`, 
-			[this.firstName, this.lastName, this.email, hash, salt, verificationCode, verified]);
+			`INSERT INTO users (id, type, firstName, lastName, email, password, passwordSalt, verifyCode, verified) 
+			VALUES (UNHEX(REPLACE(UUID(),'-','')), ?, ?, ?, ?, ?, ?, ?, ?) returning id;`, 
+			[this.type, this.firstName, this.lastName, this.email, hash, salt, verificationCode, verified]);
 
 		if (result.error != null)
 			throw new Error (result.error);
@@ -384,8 +401,8 @@ export class User implements IUser
 	static async editUser (db: HotDBMySQL, user: User): Promise<void>
 	{
 		let result: any = await db.queryOne (
-			`UPDATE users SET firstName = ?, lastName = ?, email = ?, verified = ? WHERE id = UNHEX(REPLACE(?, '-', ''));`,
-			[user.firstName, user.lastName, user.email, user.verified, user.id]);
+			`UPDATE users SET type = ?, firstName = ?, lastName = ?, email = ?, verified = ? WHERE id = UNHEX(REPLACE(?, '-', ''));`,
+			[user.type, user.firstName, user.lastName, user.email, user.verified, user.id]);
 
 		if (result.error != null)
 			throw new Error (result.error);
@@ -646,6 +663,7 @@ export class User implements IUser
 
 		let user: User = new User ({
 				id: userId,
+				type: rawDBResults["type"],
 				firstName: rawDBResults["firstName"],
 				lastName: rawDBResults["lastName"],
 				email: rawDBResults["email"],
