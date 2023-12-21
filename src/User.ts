@@ -3,6 +3,8 @@ import * as crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
+import { SESClient, SESClientConfig, SendEmailCommand } from "@aws-sdk/client-ses";
+
 /**
  * The user.
  */
@@ -64,6 +66,29 @@ export interface IUser
 	 * The player's JWT token.
 	 */
 	jwtToken?: string;
+}
+
+/**
+ * The email config.
+ */
+export interface EmailConfig
+{
+	/**
+	 * The AWS SES client configuration.
+	 */
+	sesClientConfig: SESClientConfig;
+	/**
+	 * The subject of the email.
+	 */
+	subject: string;
+	/**
+	 * The from address. Where the email is being sent from.
+	 */
+	fromAddress: string;
+	/**
+	 * The body of the email to send.
+	 */
+	body: (user: IUser, verificationCode: string) => string;
 }
 
 /**
@@ -571,7 +596,7 @@ export class User implements IUser
 	/**
 	 * Start the reset of a user's password.
 	 */
-	static async forgotPassword (db: HotDBMySQL, email: string): Promise<string>
+	static async forgotPassword (db: HotDBMySQL, email: string, emailConfig: EmailConfig = null): Promise<string>
 	{
 		let user: User = await User.getUser (db, email);
 
@@ -590,6 +615,31 @@ export class User implements IUser
 
 			if (result.error != null)
 				throw new Error (result.error);
+		}
+
+		if (emailConfig != null)
+		{
+			const sesClientConfig: SESClientConfig = emailConfig.sesClientConfig;
+			const client = new SESClient (sesClientConfig);
+			const cmd = new SendEmailCommand ({
+					Destination: {
+						ToAddresses: [user.email]
+					},
+					Message: {
+						Body: {
+							Text: {
+								Charset: "UTF-8",
+								Data: emailConfig.body (user, user.verifyCode)
+							}
+						},
+						Subject: {
+							Charset: "UTF-8",
+							Data: emailConfig.subject
+						}
+					},
+					Source: emailConfig.fromAddress
+				});
+			const response = await client.send (cmd);
 		}
 
 		return (user.verifyCode);

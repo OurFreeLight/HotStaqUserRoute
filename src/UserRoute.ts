@@ -370,7 +370,7 @@ export class UserRoute extends HotRoute
 
 		let newUser: User = new User (user);
 
-		if (this.connection.processor.mode !== Hot.DeveloperMode.Development)
+		if (this.connection.processor.mode === Hot.DeveloperMode.Development)
 			newUser.verified = true;
 
 		await newUser.register (this.db);
