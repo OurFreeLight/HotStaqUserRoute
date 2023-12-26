@@ -2,6 +2,11 @@
 name: Publish Package
 
 on:
+  workflow_run:
+    workflows: 
+      - test
+    types:
+      - completed
   push:
     branches:
       - main
