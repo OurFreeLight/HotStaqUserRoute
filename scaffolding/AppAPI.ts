@@ -1,6 +1,8 @@
 import { HotAPI, HotServer, HotClient, HotRoute, 
 	HotRouteMethod, MySQLSchema, 
 	ServerAuthorizationFunction, HotStaq, HotServerType } from "hotstaq";
+
+import { AdminRoute } from "../src/AdminRoute";
 import { UserRoute } from "../src/UserRoute";
 
 /**
@@ -28,6 +30,7 @@ export class AppAPI extends HotAPI
 				return (true);
 			};
 
+		this.addRoute (new AdminRoute (this));
 		this.addRoute (new UserRoute (this));
 	}
 }

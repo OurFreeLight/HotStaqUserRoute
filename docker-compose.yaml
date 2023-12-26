@@ -31,8 +31,5 @@ services:
       MYSQL_USER: "${DATABASE_USERNAME}"
       MYSQL_PASSWORD: "${DATABASE_PASSWORD}"
 
-volumes:
-  app-database-volume:
-
 networks:
   app-network:
