@@ -59,7 +59,7 @@ export class AdminRoute extends UserRoute
 	{
 		let user: User = await super.login (req);
 
-		if (user.type !== "admin")
+		if (user.userType !== "admin")
 			throw new Error (`Only admins are allowed to login to this route.`);
 
 		return (user);
@@ -78,7 +78,7 @@ export class AdminRoute extends UserRoute
 		const offset: number = HotStaq.getParamDefault ("offset", req.jsonObj, 0);
 		const limit: number = HotStaq.getParamDefault ("limit", req.jsonObj, 20);
 
-		if (user.type !== "admin")
+		if (user.userType !== "admin")
 			throw new Error (`Only admins are allowed to login to this route.`);
 
 		let query: string = `SELECT * FROM users LIMIT ?, ?;`;
