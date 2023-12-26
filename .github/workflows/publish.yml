@@ -18,7 +18,11 @@ jobs:
 
       - name: Set up environment variables
         run: |
-          echo "$ENV_FILE" > .env
+          echo "${{ secrets.ENV_FILE }}" > .env
+
+      - name: Setup .npmrc
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

@@ -20,7 +20,7 @@ jobs:
 
       - name: Set up environment variables
         run: |
-          echo "$ENV_FILE" > .env
+          echo "${{ secrets.ENV_FILE }}" > .env
 
       - name: Start Database
         run: |
