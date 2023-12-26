@@ -21,6 +21,7 @@ jobs:
       - name: Set up environment variables
         run: |
           echo "${{ secrets.ENV_FILE }}" > .env
+          ls -lah ./.env
 
       - name: Start Database
         run: |
