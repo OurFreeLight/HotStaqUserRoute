@@ -20,8 +20,10 @@ jobs:
 
       - name: Set up environment variables
         run: |
-          echo "${{ secrets.ENV_FILE }}" > .env
+          echo "${{ secrets.ENV_FILE }}" > ./.env
+          echo $PWD
           ls -lah ./.env
+          cat ./.env
 
       - name: Start Database
         run: |
