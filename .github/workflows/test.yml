@@ -10,6 +10,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-22.04
+    environment: ${{ github.ref }}
 
     steps:
       - name: Checkout code
@@ -21,10 +22,7 @@ jobs:
       - name: Set up environment variables
         run: |
           echo "${{ secrets.ENV_FILE }}" > ./.env
-          echo $PWD
-          ls -lah
           ls -lah ./.env
-          cat ./.env
 
       - name: Start Database
         run: |
