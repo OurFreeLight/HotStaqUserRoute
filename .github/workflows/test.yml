@@ -2,10 +2,6 @@ name: Test Package
 
 on:
   workflow_call:
-  push:
-    branches:
-      - dev
-      - main
 
 jobs:
   test:

@@ -1,0 +1,12 @@
+name: Dev Test
+
+on:
+  workflow_call:
+  push:
+    branches:
+      - dev
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
