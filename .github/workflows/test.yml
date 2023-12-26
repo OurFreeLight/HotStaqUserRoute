@@ -21,7 +21,16 @@ jobs:
 
       - name: Set up environment variables
         run: |
-          echo "${{ secrets.ENV_FILE }}" > ./.env
+          cat << EOF > ./.env
+          JWT_SECRET_KEY=a9w083j9w873h789w2
+          AUTO_VERIFY_USERS=0
+          DISABLE_REHASHING=0
+          MYSQL_ROOT_PASSWORD=jlka7sw47aSD234
+          DATABASE_PORT=3324
+          DATABASE_USERNAME=awuiyh34ygsd
+          DATABASE_PASSWORD=3ui45hiyuawer
+          DATABASE_SCHEMA=appdb
+          EOF
           ls -lah ./.env
 
       - name: Start Database
