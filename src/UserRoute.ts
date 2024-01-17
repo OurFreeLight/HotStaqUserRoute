@@ -359,6 +359,11 @@ export class UserRoute extends HotRoute
 
 		await newUser.register (this.db);
 
+		req.passObject.returnToClient = false;
+		req.passObject.jsonObj = { verifyCode: newUser.verifyCode, user: newUser };
+
+		newUser.verifyCode = "";
+
 		return (newUser);
 	}
 

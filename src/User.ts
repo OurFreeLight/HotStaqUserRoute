@@ -204,6 +204,11 @@ export class User implements IUser
 	 */
 	static onVerifyUserUpdate: (user: User) => Promise<void> = null;
 	/**
+	 * The event to fire when a user's email verification has been sent. If a result 
+	 * other than null or undefined is returned, this will be used as the email config.
+	 */
+	static onVerificationSent: (user: User, emailConfig: EmailConfig) => Promise<EmailConfig> = null;
+	/**
 	 * The event to fire when a user's forgotten password has started. This updates 
 	 * the user's verifyCode in the database so the user can update their password.
 	 */
@@ -455,9 +460,9 @@ export class User implements IUser
 	 * retreive the user from the database and instead use the user object provided.
 	 * @param email The user's email.
 	 * @param password The user's password.
-	 * @param getPassword If set to true, this will return the user's password and salt.
-	 * ONLY USE THIS WHEN NECESSARY. I HAVE NO IDEA WHY THIS WOULD EVER BE NECESSARY, 
-	 * BUT I'M PUTTING IT HERE JUST IN CASE.
+	 * @param getPassword If set to true, this will return the user's password, salt, and verifyCode.
+	 * ONLY USE THIS WHEN NECESSARY. I HAVE NO IDEA WHY THIS WOULD EVER BE NECESSARY, BUT I'M PUTTING 
+	 * IT HERE JUST IN CASE.
 	 */
 	static async login (db: HotDBMySQL, ip: string | User, email?: string, 
 		password?: string, getPassword: boolean = false): Promise<User>
@@ -516,9 +521,11 @@ export class User implements IUser
 			password = "";
 			foundUser.password = "";
 			foundUser.passwordSalt = "";
+			foundUser.verifyCode = "";
 
 			delete foundUser.password;
 			delete foundUser.passwordSalt;
+			delete foundUser.verifyCode;
 		}
 
 		let userLoginId: string = "";
@@ -594,6 +601,24 @@ export class User implements IUser
 	}
 
 	/**
+	 * Send the verification email.
+	 */
+	static async sendVerificationEmail (db: HotDBMySQL, user: User, emailConfig: EmailConfig): Promise<void>
+	{
+		if (User.onVerificationSent != null)
+		{
+			let result = await User.onVerificationSent (user, emailConfig);
+
+			if (result != null)
+				emailConfig = result;
+		}
+
+		const body: string = emailConfig.body (user, user.verifyCode);
+
+		await User.sendEmail (user.email, emailConfig.subject, body, emailConfig);
+	}
+
+	/**
 	 * Start the reset of a user's password.
 	 */
 	static async forgotPassword (db: HotDBMySQL, email: string, emailConfig: EmailConfig = null): Promise<string>
@@ -619,27 +644,9 @@ export class User implements IUser
 
 		if (emailConfig != null)
 		{
-			const sesClientConfig: SESClientConfig = emailConfig.sesClientConfig;
-			const client = new SESClient (sesClientConfig);
-			const cmd = new SendEmailCommand ({
-					Destination: {
-						ToAddresses: [user.email]
-					},
-					Message: {
-						Body: {
-							Text: {
-								Charset: "UTF-8",
-								Data: emailConfig.body (user, user.verifyCode)
-							}
-						},
-						Subject: {
-							Charset: "UTF-8",
-							Data: emailConfig.subject
-						}
-					},
-					Source: emailConfig.fromAddress
-				});
-			const response = await client.send (cmd);
+			const body: string = emailConfig.body (user, user.verifyCode);
+
+			await User.sendEmail (user.email, emailConfig.subject, body, emailConfig);
 		}
 
 		return (user.verifyCode);
@@ -677,9 +684,37 @@ export class User implements IUser
 	}
 
 	/**
+	 * Send an email.
+	 */
+	static async sendEmail (toEmail: string, subject: string, body: string, emailConfig: EmailConfig): Promise<void>
+	{
+		const sesClientConfig: SESClientConfig = emailConfig.sesClientConfig;
+		const client = new SESClient (sesClientConfig);
+		const cmd = new SendEmailCommand ({
+				Destination: {
+					ToAddresses: [toEmail]
+				},
+				Message: {
+					Body: {
+						Text: {
+							Charset: "UTF-8",
+							Data: body
+						}
+					},
+					Subject: {
+						Charset: "UTF-8",
+						Data: subject
+					}
+				},
+				Source: emailConfig.fromAddress
+			});
+		const response = await client.send (cmd);
+	}
+
+	/**
 	 * Get user by their email. This WILL NOT return the current user's api key or secret.
 	 * 
-	 * @param getPassword If set to true, this will return the user's password and salt.
+	 * @param getPassword If set to true, this will return the user's password, salt, and verifyCode.
 	 * ONLY USE THIS WHEN NECESSARY.
 	 */
 	static async getUser (db: HotDBMySQL, email: string, getPassword: boolean = false): Promise<User | null>
@@ -726,11 +761,12 @@ export class User implements IUser
 				verified: rawDBResults["verified"]
 			});
 
-		// Only get the password if explicitly told to do so.
+		// Only get the password/verify code if explicitly told to do so.
 		if (getPassword === false)
 		{
 			user.password = "";
 			user.passwordSalt = "";
+			user.verifyCode = "";
 		}
 
 		return (user);
