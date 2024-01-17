@@ -603,7 +603,7 @@ export class User implements IUser
 	/**
 	 * Send the verification email.
 	 */
-	static async sendVerificationEmail (db: HotDBMySQL, user: User, emailConfig: EmailConfig): Promise<void>
+	static async sendVerificationEmail (user: User, emailConfig: EmailConfig): Promise<void>
 	{
 		if (User.onVerificationSent != null)
 		{
