@@ -5,7 +5,7 @@ import { HotRoute, HotDBMySQL, HotServerType,
 import { IJWTToken, IUser, User } from "./User";
 
 import * as ppath from "path";
-import { HotRouteMethodParameter } from "hotstaq/build/src/HotRouteMethod";
+import { HotRouteMethodParameter, PassType } from "hotstaq/build/src/HotRouteMethod";
 
 /**
  * The User route.
@@ -343,7 +343,10 @@ export class UserRoute extends HotRoute
 	}
 
 	/**
-	 * The user to register.
+	 * The user to register. By default, the user object that is returned 
+	 * will not have password, passwordSalt, or verifyCode set. To access 
+	 * the result of verifyCode, you can access it via onServerPostExecute 
+	 * and access the req.passObject.jsonObj.verifyCode property.
 	 */
 	protected async register (req: ServerRequest): Promise<any>
 	{
@@ -359,7 +362,7 @@ export class UserRoute extends HotRoute
 
 		await newUser.register (this.db);
 
-		req.passObject.returnToClient = false;
+		req.passObject.passType = PassType.Update;
 		req.passObject.jsonObj = { verifyCode: newUser.verifyCode, user: newUser };
 
 		newUser.verifyCode = "";

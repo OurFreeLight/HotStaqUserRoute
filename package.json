@@ -1,7 +1,7 @@
 {
   "name": "@hotstaq/userroute",
   "description": "A user route for HotStaq. Allows users to be created/edited/deleted securely.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "main": "build/src/index.js",
   "scripts": {
     "test": "hotstaq --dev --env-file .env run --server-type api --api-test",
@@ -17,7 +17,7 @@
     "@aws-sdk/client-ses": "^3.478.0",
     "bcrypt": "^5.1.0",
     "dotenv": "^10.0.0",
-    "hotstaq": "^0.8.83",
+    "hotstaq": "^0.8.85",
     "jsonwebtoken": "^9.0.0"
   },
   "devDependencies": {
