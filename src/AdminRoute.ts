@@ -1,6 +1,7 @@
 import { HotRoute, ServerRequest, HotTestDriver, HotStaq, HotServerType, HotDBMySQL, ConnectionStatus, HotAPI } from "hotstaq";
 import { IJWTToken, IUser, User } from "./User";
 import { UserRoute } from "./UserRoute";
+import { PassType } from "hotstaq/build/src/HotRouteMethod";
 
 /**
  * Admin route.
@@ -45,7 +46,8 @@ export class AdminRoute extends UserRoute
 	}
 
 	/**
-	 * The user to register.
+	 * The admin to register. By default this prevents admins from being able 
+	 * to register. To enable this, override this method, and call super.register.
 	 */
 	protected async register (req: ServerRequest): Promise<any>
 	{
@@ -53,7 +55,7 @@ export class AdminRoute extends UserRoute
 	}
 
 	/**
-	 * The user login.
+	 * The admin login. This checks to verify the user is an admin.
 	 */
 	protected async login (req: ServerRequest): Promise<any>
 	{
@@ -67,19 +69,29 @@ export class AdminRoute extends UserRoute
 
 	/**
 	 * List users.
+	 * 
+	 * **WARNING:** By default, this method can be used by anyone. To 
+	 * prevent this, use "onServerPreExecute" to check the user's permissions. 
+	 * For better performance, be sure to use User.decodeJWTToken in onServerPreExecute
+	 * to decode the JWT token and store the user in req.passObject.jsonObj. Without 
+	 * this, the user will be decoded twice.
 	 */
 	protected async listUsers (req: ServerRequest): Promise<any>
 	{
-		const jwtToken: string = HotStaq.getParam ("jwtToken", req.jsonObj);
-		let decoded: IJWTToken = await User.decodeJWTToken (jwtToken);
-		const user: IUser = decoded.user;
+		let user: IUser = null;
+
+		if (req.passObject.passType === PassType.Update)
+			user = req.passObject.jsonObj;
+		else
+		{
+			const jwtToken: string = HotStaq.getParam ("jwtToken", req.jsonObj);
+			let decoded: IJWTToken = await User.decodeJWTToken (jwtToken);
+			user = decoded.user;
+		}
 
 		const search: string = HotStaq.getParamDefault ("search", req.jsonObj, null);
 		const offset: number = HotStaq.getParamDefault ("offset", req.jsonObj, 0);
 		const limit: number = HotStaq.getParamDefault ("limit", req.jsonObj, 20);
-
-		if (user.userType !== "admin")
-			throw new Error (`Only admins are allowed to login to this route.`);
 
 		let query: string = `SELECT * FROM users LIMIT ?, ?;`;
 		let args: any[] = [offset, limit];
