@@ -1,7 +1,7 @@
 import { HotRoute, ServerRequest, HotTestDriver, HotStaq, HotServerType, HotDBMySQL, ConnectionStatus, HotAPI } from "hotstaq";
 import { IJWTToken, IUser, User } from "./User";
 import { UserRoute } from "./UserRoute";
-import { PassType } from "hotstaq/build/src/HotRouteMethod";
+import { HotRouteMethodParameter, PassType } from "hotstaq/build/src/HotRouteMethod";
 
 /**
  * Admin route.
@@ -17,6 +17,43 @@ export class AdminRoute extends UserRoute
 	{
 		super (api, "admins");
 
+		let userObjectDesc: HotRouteMethodParameter = {
+				"type": "object",
+				"description": "The user object.",
+				// @ts-ignore
+				"parameters": await HotStaq.convertInterfaceToRouteParameters (ppath.normalize (`${__dirname}/../../src/User.ts`), "IUser")
+			};
+
+		this.addMethod ({
+				"name": "editUser",
+				"onServerExecute": this.editUser,
+				"description": `Edit a user. The id set in the user object that is passed will be the id of the user that is edited.`,
+				"parameters": {
+					"user": userObjectDesc
+				},
+				"returns": "Returns true if the user was edited.",
+				"testCases": [
+					"editUserTest",
+					async (driver: HotTestDriver): Promise<any> =>
+					{
+					}
+				]
+			});
+		this.addMethod ({
+				"name": "deleteUser",
+				"onServerExecute": this.deleteUser,
+				"description": `Delete a user. The id set in the user object that is passed will be the id of the user that is deleted.`,
+				"parameters": {
+					"user": userObjectDesc
+				},
+				"returns": "Returns true if the user was deleted.",
+				"testCases": [
+					"deleteUserTest",
+					async (driver: HotTestDriver): Promise<any> =>
+					{
+					}
+				]
+			});
 		this.addMethod ({
 				"name": "listUsers",
 				"onServerExecute": this.listUsers,
@@ -68,27 +105,45 @@ export class AdminRoute extends UserRoute
 	}
 
 	/**
+	 * Edit a user.
+	 * 
+	 * **WARNING:** By default, this method can be used by anyone. To 
+	 * prevent this, use "onServerPreExecute" to check the user's permissions.
+	 */
+	protected async editUser (req: ServerRequest): Promise<boolean>
+	{
+		const userObj: IUser = HotStaq.getParam ("user", req.jsonObj);
+		const user: User = new User (userObj);
+
+		await User.editUser (this.db, user);
+
+		return (true);
+	}
+
+	/**
+	 * Delete a user.
+	 * 
+	 * **WARNING:** By default, this method can be used by anyone. To 
+	 * prevent this, use "onServerPreExecute" to check the user's permissions.
+	 */
+	protected async deleteUser (req: ServerRequest): Promise<boolean>
+	{
+		const userObj: IUser = HotStaq.getParam ("user", req.jsonObj);
+		const user: User = new User (userObj);
+
+		await User.deleteUser (this.db, user);
+
+		return (true);
+	}
+
+	/**
 	 * List users.
 	 * 
 	 * **WARNING:** By default, this method can be used by anyone. To 
-	 * prevent this, use "onServerPreExecute" to check the user's permissions. 
-	 * For better performance, be sure to use User.decodeJWTToken in onServerPreExecute
-	 * to decode the JWT token and store the user in req.passObject.jsonObj. Without 
-	 * this, the user will be decoded twice.
+	 * prevent this, use "onServerPreExecute" to check the user's permissions.
 	 */
 	protected async listUsers (req: ServerRequest): Promise<any>
 	{
-		let user: IUser = null;
-
-		if (req.passObject.passType === PassType.Update)
-			user = req.passObject.jsonObj;
-		else
-		{
-			const jwtToken: string = HotStaq.getParam ("jwtToken", req.jsonObj);
-			let decoded: IJWTToken = await User.decodeJWTToken (jwtToken);
-			user = decoded.user;
-		}
-
 		const search: string = HotStaq.getParamDefault ("search", req.jsonObj, null);
 		const offset: number = HotStaq.getParamDefault ("offset", req.jsonObj, 0);
 		const limit: number = HotStaq.getParamDefault ("limit", req.jsonObj, 20);

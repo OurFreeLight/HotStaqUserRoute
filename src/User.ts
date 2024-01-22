@@ -23,6 +23,10 @@ export interface IUser
 	 */
 	userType?: string;
 	/**
+	 * The user's display name.
+	 */
+	displayName?: string;
+	/**
 	 * The user's first name.
 	 */
 	firstName?: string;
@@ -127,6 +131,10 @@ export class User implements IUser
 	 * The user type.
 	 */
 	userType: string;
+	/**
+	 * The user's display name.
+	 */
+	displayName: string;
 	/**
 	 * The user's first name.
 	 */
@@ -235,6 +243,7 @@ export class User implements IUser
 		this.enabled = user.enabled || true;
 		this.id = user.id || "";
 		this.userType = user.userType || "user";
+		this.displayName = user.displayName || "";
 		this.firstName = user.firstName || "";
 		this.lastName = user.lastName || "";
 		this.email = user.email || "";
@@ -260,6 +269,7 @@ export class User implements IUser
 			`create table if not exists users (
 					id             BINARY(16)     NOT NULL,
 					userType       VARCHAR(256)   DEFAULT 'user',
+					displayName    VARCHAR(256)   DEFAULT '',
 					firstName      VARCHAR(256)   DEFAULT '',
 					lastName       VARCHAR(256)   DEFAULT '',
 					email          VARCHAR(256)   DEFAULT '',
@@ -268,6 +278,7 @@ export class User implements IUser
 					verifyCode     VARCHAR(256)   DEFAULT '',
 					verified       TINYINT(1)     DEFAULT '0',
 					registeredDate DATETIME       DEFAULT NOW(),
+					deletionDate   DATETIME       DEFAULT NULL,
 					enabled        TINYINT(1)     DEFAULT '1',
 					PRIMARY KEY (id)
 				)`);
@@ -291,6 +302,7 @@ export class User implements IUser
 						new User ({
 							firstName: "John",
 							lastName: "Doe",
+							displayName: "Test1",
 							email: "test1@freelight.org",
 							password: "a867h398jdg",
 							verified: true
@@ -298,6 +310,7 @@ export class User implements IUser
 						new User ({
 							firstName: "Jane",
 							lastName: "Smith",
+							displayName: "Test2",
 							email: "test2@freelight.org",
 							password: "ai97w3a98w3498",
 							verified: true }),
@@ -305,6 +318,7 @@ export class User implements IUser
 							userType: "admin",
 							firstName: "Bob",
 							lastName: "Derp",
+							displayName: "Admin1",
 							email: "admin1@freelight.org",
 							password: "a98j3w987aw3h47u",
 							verified: true })
@@ -391,9 +405,9 @@ export class User implements IUser
 		}
 
 		let result: any = await db.queryOne (
-			`INSERT INTO users (id, userType, firstName, lastName, email, password, passwordSalt, verifyCode, verified) 
-			VALUES (UNHEX(REPLACE(UUID(),'-','')), ?, ?, ?, ?, ?, ?, ?, ?) returning id;`, 
-			[this.userType, this.firstName, this.lastName, this.email, hash, salt, verificationCode, verified]);
+			`INSERT INTO users (id, userType, displayName, firstName, lastName, email, password, passwordSalt, verifyCode, verified) 
+			VALUES (UNHEX(REPLACE(UUID(),'-','')), ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id;`, 
+			[this.userType, this.displayName, this.firstName, this.lastName, this.email, hash, salt, verificationCode, verified]);
 
 		if (result.error != null)
 			throw new Error (result.error);
@@ -431,8 +445,8 @@ export class User implements IUser
 	static async editUser (db: HotDBMySQL, user: User): Promise<void>
 	{
 		let result: any = await db.queryOne (
-			`UPDATE users SET userType = ?, firstName = ?, lastName = ?, email = ?, verified = ? WHERE id = UNHEX(REPLACE(?, '-', ''));`,
-			[user.userType, user.firstName, user.lastName, user.email, user.verified, user.id]);
+			`UPDATE users SET userType = ?, displayName = ?, firstName = ?, lastName = ?, email = ?, verified = ? WHERE id = UNHEX(REPLACE(?, '-', ''));`,
+			[user.userType, user.displayName, user.firstName, user.lastName, user.email, user.verified, user.id]);
 
 		if (result.error != null)
 			throw new Error (result.error);
@@ -721,6 +735,7 @@ export class User implements IUser
 		let user: User = new User ({
 				id: userId,
 				userType: result["userType"],
+				displayName: result["displayName"],
 				firstName: result["firstName"],
 				lastName: result["lastName"],
 				email: result["email"],
