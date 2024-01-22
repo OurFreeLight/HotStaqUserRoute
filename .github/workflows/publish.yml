@@ -32,16 +32,16 @@ jobs:
           EOF
           ls -lah ./.env
 
-      - name: Setup .npmrc
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          ls -lah ./.npmrc
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 16
           registry-url: https://registry.npmjs.org/
+
+      - name: Setup .npmrc
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+          ls -lah ./.npmrc
 
       - name: Install dependencies
         run: npm install
