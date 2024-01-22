@@ -1,17 +1,18 @@
 name: Publish Package
 
 on:
-  workflow_run:
-    workflows: 
-      - test
-    types:
-      - completed
+  push:
+    branches:
+      - main
 
 jobs:
-  on-success:
+  test:
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+  publish:
+    needs: test
     runs-on: ubuntu-22.04
     environment: ${{ github.ref }}
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout code
