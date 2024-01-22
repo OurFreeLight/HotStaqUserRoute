@@ -792,7 +792,7 @@ export class User implements IUser
 			rawDBResults = result.results;
 		}
 
-		let user: User = User.getUserFromResult (rawDBResults);
+		let user: User = User.getUserFromResult (rawDBResults, getPassword);
 
 		return (user);
 	}
