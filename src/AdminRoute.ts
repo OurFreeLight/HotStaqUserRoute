@@ -17,69 +17,72 @@ export class AdminRoute extends UserRoute
 	{
 		super (api, "admins");
 
-		let userObjectDesc: HotRouteMethodParameter = {
-				"type": "object",
-				"description": "The user object.",
-				// @ts-ignore
-				"parameters": await HotStaq.convertInterfaceToRouteParameters (ppath.normalize (`${__dirname}/../../src/User.ts`), "IUser")
-			};
-
-		this.addMethod ({
-				"name": "editUser",
-				"onServerExecute": this.editUser,
-				"description": `Edit a user. The id set in the user object that is passed will be the id of the user that is edited.`,
-				"parameters": {
-					"user": userObjectDesc
-				},
-				"returns": "Returns true if the user was edited.",
-				"testCases": [
-					"editUserTest",
-					async (driver: HotTestDriver): Promise<any> =>
-					{
-					}
-				]
-			});
-		this.addMethod ({
-				"name": "deleteUser",
-				"onServerExecute": this.deleteUser,
-				"description": `Delete a user. The id set in the user object that is passed will be the id of the user that is deleted.`,
-				"parameters": {
-					"user": userObjectDesc
-				},
-				"returns": "Returns true if the user was deleted.",
-				"testCases": [
-					"deleteUserTest",
-					async (driver: HotTestDriver): Promise<any> =>
-					{
-					}
-				]
-			});
-		this.addMethod ({
-				"name": "listUsers",
-				"onServerExecute": this.listUsers,
-				"description": `Lists all users.`,
-				"parameters": {
-					"offset": {
-						"type": "int",
-						"required": false
-					},
-					"limit": {
-						"type": "int",
-						"required": false
-					}
-				},
-				"returns": "Returns the list of users.",
-				"testCases": [
-					"listUsersTest",
-					async (driver: HotTestDriver): Promise<any> =>
-					{
+		this.onPreRegister = async () =>
+			{
+				let userObjectDesc: HotRouteMethodParameter = {
+						"type": "object",
+						"description": "The user object.",
 						// @ts-ignore
-						let resp = await api.admins.listUsers ();
-
-						driver.assert (resp.length > 0, "No users were returned.");
-					}
-				]
-			});
+						"parameters": await HotStaq.convertInterfaceToRouteParameters (ppath.normalize (`${__dirname}/../../src/User.ts`), "IUser")
+					};
+		
+				this.addMethod ({
+						"name": "editUser",
+						"onServerExecute": this.editUser,
+						"description": `Edit a user. The id set in the user object that is passed will be the id of the user that is edited.`,
+						"parameters": {
+							"user": userObjectDesc
+						},
+						"returns": "Returns true if the user was edited.",
+						"testCases": [
+							"editUserTest",
+							async (driver: HotTestDriver): Promise<any> =>
+							{
+							}
+						]
+					});
+				this.addMethod ({
+						"name": "deleteUser",
+						"onServerExecute": this.deleteUser,
+						"description": `Delete a user. The id set in the user object that is passed will be the id of the user that is deleted.`,
+						"parameters": {
+							"user": userObjectDesc
+						},
+						"returns": "Returns true if the user was deleted.",
+						"testCases": [
+							"deleteUserTest",
+							async (driver: HotTestDriver): Promise<any> =>
+							{
+							}
+						]
+					});
+				this.addMethod ({
+						"name": "listUsers",
+						"onServerExecute": this.listUsers,
+						"description": `Lists all users.`,
+						"parameters": {
+							"offset": {
+								"type": "int",
+								"required": false
+							},
+							"limit": {
+								"type": "int",
+								"required": false
+							}
+						},
+						"returns": "Returns the list of users.",
+						"testCases": [
+							"listUsersTest",
+							async (driver: HotTestDriver): Promise<any> =>
+							{
+								// @ts-ignore
+								let resp = await api.admins.listUsers ();
+		
+								driver.assert (resp.length > 0, "No users were returned.");
+							}
+						]
+					});
+			};
 	}
 
 	/**
