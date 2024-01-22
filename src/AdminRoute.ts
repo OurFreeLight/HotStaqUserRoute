@@ -113,7 +113,7 @@ export class AdminRoute extends UserRoute
 		{
 			let row = results.results[i];
 
-			users.push (row);
+			users.push (User.getUserFromResult (row));
 		}
 
 		return (users);

@@ -712,6 +712,39 @@ export class User implements IUser
 	}
 
 	/**
+	 * Get a user from a database result.
+	 */
+	static getUserFromResult (result: any, getPassword: boolean = false): User
+	{
+		let userId: string = User.fromBinaryToUUID (result["id"]);
+
+		let user: User = new User ({
+				id: userId,
+				userType: result["userType"],
+				firstName: result["firstName"],
+				lastName: result["lastName"],
+				email: result["email"],
+				password: result["password"],
+				passwordSalt: result["passwordSalt"],
+				verifyCode: result["verifyCode"],
+				registeredDate: result["registeredDate"],
+				loginDate: result["loginDate"],
+				enabled: result["enabled"], 
+				verified: result["verified"]
+			});
+
+		// Only get the password/verify code if explicitly told to do so.
+		if (getPassword === false)
+		{
+			user.password = "";
+			user.passwordSalt = "";
+			user.verifyCode = "";
+		}
+
+		return (user);
+	}
+
+	/**
 	 * Get user by their email. This WILL NOT return the current user's api key or secret.
 	 * 
 	 * @param getPassword If set to true, this will return the user's password, salt, and verifyCode.
@@ -744,30 +777,7 @@ export class User implements IUser
 			rawDBResults = result.results;
 		}
 
-		let userId: string = User.fromBinaryToUUID (rawDBResults["id"]);
-
-		let user: User = new User ({
-				id: userId,
-				userType: rawDBResults["userType"],
-				firstName: rawDBResults["firstName"],
-				lastName: rawDBResults["lastName"],
-				email: rawDBResults["email"],
-				password: rawDBResults["password"],
-				passwordSalt: rawDBResults["passwordSalt"],
-				verifyCode: rawDBResults["verifyCode"],
-				registeredDate: rawDBResults["registeredDate"],
-				loginDate: rawDBResults["loginDate"],
-				enabled: rawDBResults["enabled"], 
-				verified: rawDBResults["verified"]
-			});
-
-		// Only get the password/verify code if explicitly told to do so.
-		if (getPassword === false)
-		{
-			user.password = "";
-			user.passwordSalt = "";
-			user.verifyCode = "";
-		}
+		let user: User = User.getUserFromResult (rawDBResults);
 
 		return (user);
 	}
