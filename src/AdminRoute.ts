@@ -11,13 +11,24 @@ import { HotRouteMethodParameter, PassType } from "hotstaq/build/src/HotRouteMet
 export class AdminRoute extends UserRoute
 {
 	/**
+	 * Requires that each method requires authentication from a user of type.
+	 * Set this to an empty string if you want to handle authentication yourself.
+	 * Be warned, if you do this, you will need to check the user's permissions 
+	 * on EVERY method within this route.
+	 * 
+	 * @default admin
+	 */
+	methodsRequireAuthType: string;
+	/**
 	 * The database connection.
 	 */
 	db: HotDBMySQL;
 
-	constructor (api: HotAPI)
+	constructor (api: HotAPI, routeName: string = "admins")
 	{
-		super (api, "admins");
+		super (api, routeName);
+
+		this.methodsRequireAuthType = "admin";
 
 		this.onPreRegister = async () =>
 			{
@@ -53,6 +64,25 @@ export class AdminRoute extends UserRoute
 						"returns": "Returns true if the user was deleted.",
 						"testCases": [
 							"deleteUserTest",
+							async (driver: HotTestDriver): Promise<any> =>
+							{
+							}
+						]
+					});
+				this.addMethod ({
+						"name": "changePassword",
+						"onServerExecute": this.changePassword,
+						"description": `Change a user's password. The id set in the user object that is passed will be the id of the user that has it's password changed.`,
+						"parameters": {
+							"user": userObjectDesc,
+							"newPassword": {
+								"type": "string",
+								"description": "The new password to set."
+							}
+						},
+						"returns": "Returns true if the user's password was changed.",
+						"testCases": [
+							"changePasswordTest",
 							async (driver: HotTestDriver): Promise<any> =>
 							{
 							}
@@ -97,26 +127,41 @@ export class AdminRoute extends UserRoute
 	}
 
 	/**
-	 * The admin login. This checks to verify the user is an admin.
+	 * Check a user's authentication.
+	 */
+	protected async checkAuth (req: ServerRequest): Promise<void>
+	{
+		if (this.methodsRequireAuthType !== "")
+		{
+			const jwtToken: string = HotStaq.getParam ("jwtToken", req.jsonObj);
+			const decoded: IJWTToken = await User.decodeJWTToken (jwtToken);
+			const authUser: IUser = decoded.user;
+
+			if (authUser.userType !== this.methodsRequireAuthType)
+				throw new Error (`Only user of type ${this.methodsRequireAuthType} is allowed to use this method.`);
+		}
+	}
+
+	/**
+	 * The admin login. This checks to verify the user is of the user type set in 
+	 * this.methodsRequireAuthType.
 	 */
 	protected async login (req: ServerRequest): Promise<any>
 	{
 		let user: User = await super.login (req);
 
-		if (user.userType !== "admin")
-			throw new Error (`Only admins are allowed to login to this route.`);
+		await this.checkAuth (req);
 
 		return (user);
 	}
 
 	/**
 	 * Edit a user.
-	 * 
-	 * **WARNING:** By default, this method can be used by anyone. To 
-	 * prevent this, use "onServerPreExecute" to check the user's permissions.
 	 */
 	protected async editUser (req: ServerRequest): Promise<boolean>
 	{
+		await this.checkAuth (req);
+
 		const userObj: IUser = HotStaq.getParam ("user", req.jsonObj);
 		const user: User = new User (userObj);
 
@@ -127,12 +172,11 @@ export class AdminRoute extends UserRoute
 
 	/**
 	 * Delete a user.
-	 * 
-	 * **WARNING:** By default, this method can be used by anyone. To 
-	 * prevent this, use "onServerPreExecute" to check the user's permissions.
 	 */
 	protected async deleteUser (req: ServerRequest): Promise<boolean>
 	{
+		await this.checkAuth (req);
+
 		const userObj: IUser = HotStaq.getParam ("user", req.jsonObj);
 		const user: User = new User (userObj);
 
@@ -142,13 +186,28 @@ export class AdminRoute extends UserRoute
 	}
 
 	/**
+	 * Change a user's password.
+	 */
+	protected async changePassword (req: ServerRequest): Promise<any>
+	{
+		await this.checkAuth (req);
+
+		const userObj: IUser = HotStaq.getParam ("user", req.jsonObj);
+		const user: User = new User (userObj);
+		const newPassword: string = HotStaq.getParam ("newPassword", req.jsonObj);
+
+		await User.changePassword (this.db, user, newPassword);
+
+		return (true);
+	}
+
+	/**
 	 * List users.
-	 * 
-	 * **WARNING:** By default, this method can be used by anyone. To 
-	 * prevent this, use "onServerPreExecute" to check the user's permissions.
 	 */
 	protected async listUsers (req: ServerRequest): Promise<any>
 	{
+		await this.checkAuth (req);
+
 		const search: string = HotStaq.getParamDefault ("search", req.jsonObj, null);
 		const offset: number = HotStaq.getParamDefault ("offset", req.jsonObj, 0);
 		const limit: number = HotStaq.getParamDefault ("limit", req.jsonObj, 20);

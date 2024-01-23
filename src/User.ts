@@ -222,8 +222,14 @@ export class User implements IUser
 	 */
 	static onForgotPasswordUpdate: (user: User) => Promise<void> = null;
 	/**
+	 * The event to fire when a user's password has changed. This updates 
+	 * the user's new password hash and salt in the database.
+	 */
+	static onChangePasswordUpdate: (user: User, 
+		passwordHash: string, passwordSalt: string) => Promise<void> = null;
+	/**
 	 * The event to fire when a user's forgotten password has been reset. This updates 
-	 * the user's new password has and salt in the database.
+	 * the user's new password hash and salt in the database.
 	 */
 	static onResetForgottenPasswordUpdate: (user: User, 
 		passwordHash: string, passwordSalt: string) => Promise<void> = null;
@@ -367,7 +373,7 @@ export class User implements IUser
 	/**
 	 * Register a user.
 	 */
-	async register (db: HotDBMySQL): Promise<User>
+	async register (db: HotDBMySQL, emailConfig: EmailConfig = null, verifyCode: string = ""): Promise<User>
 	{
 		let tempUser: User | null = await User.getUser (db, this.email);
 
@@ -392,8 +398,16 @@ export class User implements IUser
 				verified = 1;
 		}
 
+		if (verifyCode !== "")
+			verificationCode = verifyCode;
+
 		if (verified === 0)
-			verificationCode = await User.createRandomHash (new Date ().toString ());
+		{
+			if (verifyCode !== "")
+				verificationCode = verifyCode;
+			else
+				verificationCode = await User.createRandomHash (new Date ().toString ());
+		}
 
 		this.verifyCode = verificationCode;
 
@@ -416,6 +430,13 @@ export class User implements IUser
 		let userId: string = User.fromBinaryToUUID (idRaw);
 
 		this.id = userId;
+
+		if (emailConfig != null)
+		{
+			const body: string = emailConfig.body (this, this.verifyCode);
+
+			await User.sendEmail (this.email, emailConfig.subject, body, emailConfig);
+		}
 
 		return (this);
 	}
@@ -615,6 +636,28 @@ export class User implements IUser
 	}
 
 	/**
+	 * Change password.
+	 */
+	static async changePassword (db: HotDBMySQL, user: User, newPassword: string): Promise<void>
+	{
+		const salt: string = await User.generateSalt ();
+		const hash: string = await User.generateHash (newPassword, salt);
+
+		if (User.onChangePasswordUpdate != null)
+			await User.onChangePasswordUpdate (user, hash, salt);
+		else
+		{
+			// Update the user's password in the database.
+			let result = await db.query (
+				`update users set password = ?, passwordSalt = ?, verifyCode = null where id = UNHEX(REPLACE(?,'-',''))`,
+					[hash, salt, user.id]);
+
+			if (result.error != null)
+				throw new Error (result.error);
+		}
+	}
+
+	/**
 	 * Send the verification email.
 	 */
 	static async sendVerificationEmail (user: User, emailConfig: EmailConfig): Promise<void>
@@ -635,21 +678,24 @@ export class User implements IUser
 	/**
 	 * Start the reset of a user's password.
 	 */
-	static async forgotPassword (db: HotDBMySQL, email: string, emailConfig: EmailConfig = null): Promise<string>
+	static async forgotPassword (db: HotDBMySQL, email: string, emailConfig: EmailConfig = null, verifyCode: string = ""): Promise<string>
 	{
-		let user: User = await User.getUser (db, email);
+		let user: User = await User.getUser (db, email, true);
 
 		if (user == null)
 			throw new Error (`User not found.`);
 
-		user.verifyCode = await User.createRandomHash (new Date ().toString ());
+		if (verifyCode !== "")
+			user.verifyCode = verifyCode;
+		else
+			user.verifyCode = await User.createRandomHash (new Date ().toString ());
 
 		if (User.onForgotPasswordUpdate != null)
 			await User.onForgotPasswordUpdate (user);
 		else
 		{
 			let result = await db.query (
-				`update users set verifyCode = ? where id = ?`,
+				`update users set verifyCode = ? where id = UNHEX(REPLACE(?,'-',''))`,
 					[user.verifyCode, user.id]);
 
 			if (result.error != null)
@@ -672,7 +718,7 @@ export class User implements IUser
 	static async resetForgottenPassword (db: HotDBMySQL, email: string, 
 		verificationCode: string, newPassword: string): Promise<void>
 	{
-		let foundUser: User = await User.getUser (db, email);
+		let foundUser: User = await User.getUser (db, email, true);
 
 		if (foundUser == null)
 			throw new Error (`User not found.`);
@@ -689,7 +735,7 @@ export class User implements IUser
 		{
 			// Update the user's password in the database.
 			let result = await db.query (
-				`update users set password = ?, passwordSalt = ?, verifyCode = null where id = ?`,
+				`update users set password = ?, passwordSalt = ?, verifyCode = null where id = UNHEX(REPLACE(?,'-',''))`,
 					[hash, salt, foundUser.id]);
 
 			if (result.error != null)
@@ -841,7 +887,7 @@ export class User implements IUser
 	/**
 	 * Verify and decode a JWT Token.
 	 */
-	static async decodeJWTToken (jwtToken: string): Promise<any>
+	static async decodeJWTToken (jwtToken: string): Promise<IJWTToken>
 	{
 		if (User.jwtSecretKey === "")
 			throw new Error (`A JWT secret key is required to run!`);
@@ -852,9 +898,9 @@ export class User implements IUser
 				throw new Error (`JWT token has been invalidated!`);
 		}
 
-		return (new Promise<string> ((resolve, reject) =>
+		return (new Promise<IJWTToken> ((resolve, reject) =>
 			{
-				jwt.verify (jwtToken, User.jwtSecretKey, (err: Error, decoded: string) =>
+				jwt.verify (jwtToken, User.jwtSecretKey, (err: Error, decoded: IJWTToken) =>
 					{
 						if (err != null)
 							throw new Error (`Unable to verify JWT token!`);
