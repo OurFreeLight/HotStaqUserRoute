@@ -2,7 +2,7 @@ import { HotRoute, HotDBMySQL, HotServerType,
 	ConnectionStatus, HotStaq, 
 	Hot, HotTestDriver, HotAPI, ServerRequest, DeveloperMode } from "hotstaq";
 
-import { IJWTToken, IUser, User } from "./User";
+import { EmailConfig, IJWTToken, IUser, User } from "./User";
 
 import * as ppath from "path";
 import { HotRouteMethodParameter, PassType } from "hotstaq/build/src/HotRouteMethod";
@@ -12,6 +12,14 @@ import { HotRouteMethodParameter, PassType } from "hotstaq/build/src/HotRouteMet
  */
 export class UserRoute extends HotRoute
 {
+	/**
+	 * The email configs to use for each type of email to send.
+	 * The available types are:
+	 * * register
+	 * * verify
+	 * * forgotPassword
+	 */
+	emailConfigs: { [type: string]: EmailConfig };
 	/**
 	 * The database connection.
 	 */
@@ -34,6 +42,7 @@ export class UserRoute extends HotRoute
 	{
 		super (api.connection, route);
 
+		this.emailConfigs = {};
 		this.testUser = {
 				email: "test3@freelight.org",
 				password: "se45se45sdfrg3456"
@@ -119,12 +128,13 @@ export class UserRoute extends HotRoute
 									user: {
 										"email": this.testUser.email,
 										"password": this.testUser.password
-									}
+									},
+									verifyCodeOverride: "se45se57yse4"
 								});
 
 							driver.assert (resp.error == null, "User registration did not complete!");
 
-							driver.persistentData.verifyCode = resp.verifyCode;
+							driver.persistentData.verifyCode = "se45se57yse4";
 
 							driver.assert (driver.persistentData.verifyCode !== "", "User registration did not complete!");
 
@@ -278,18 +288,19 @@ export class UserRoute extends HotRoute
 								}
 						}
 					},
-					"returns": "Returns true when the user has been logged out successfully.",
+					"returns": "Returns true when the verification code has been sent.",
 					"testCases": [
 						"forgotPasswordTest",
 						async (driver: HotTestDriver): Promise<any> =>
 						{
 							// @ts-ignore
 							let resp = await api.users.forgotPassword ({
-									email: this.testUser.email
+									email: this.testUser.email,
+									verifyCodeOverride: "jasd78h4357"
 								});
 
 							driver.assert (resp.error == null, "User forgotten password did not complete!");
-							driver.persistentData.verificationCode = resp;
+							driver.persistentData.verificationCode = "jasd78h4357";
 
 							driver.assert (resp !== "", "User not able to start forgotten password process!");
 						}
@@ -336,6 +347,16 @@ export class UserRoute extends HotRoute
 
 							driver.assert (resp.error == null, "User verify forgotten password did not complete!");
 							driver.assert (resp === true, "User not able to start verify forgotten password process!");
+
+							// @ts-ignore
+							resp = await api.users.login ({
+									user: {
+										"email": this.testUser.email,
+										"password": "asw45as4we5se45se45"
+									}
+								});
+
+							driver.assert (resp.error == null, "User login did not complete!");
 						}
 					]
 				});
@@ -355,12 +376,19 @@ export class UserRoute extends HotRoute
 		HotStaq.getParam ("email", user, true);
 		HotStaq.getParam ("password", user, true);
 
+		let verifyCodeOverride: string = "";
+
+		if (this.connection.processor.mode === Hot.DeveloperMode.Development)
+			verifyCodeOverride = HotStaq.getParamDefault ("verifyCodeOverride", req.jsonObj, "");
+
 		let newUser: User = new User (user);
 
 		if (this.connection.processor.mode === Hot.DeveloperMode.Development)
 			newUser.verified = true;
 
-		await newUser.register (this.db);
+		const emailConfig: EmailConfig = this.emailConfigs["register"];
+
+		await newUser.register (this.db, emailConfig, verifyCodeOverride);
 
 		req.passObject.passType = PassType.Update;
 		req.passObject.jsonObj = { verifyCode: newUser.verifyCode, user: newUser };
@@ -412,15 +440,27 @@ export class UserRoute extends HotRoute
 	}
 
 	/**
-	 * Starts the forgotten password process.
+	 * Starts the forgotten password process. When this is called, a 
+	 * verification code (called verifyCode) is generated to be consumed by the backend. To access 
+	 * the result of verifyCode, you can access it via onServerPostExecute 
+	 * and access the req.passObject.jsonObj.verifyCode property.
 	 */
-	protected async forgotPassword (req: ServerRequest): Promise<any>
+	protected async forgotPassword (req: ServerRequest): Promise<boolean>
 	{
 		const email: string = HotStaq.getParam ("email", req.jsonObj);
+		let verifyCodeOverride: string = "";
 
-		let verificationCode: string = await User.forgotPassword (this.db, email);
+		if (this.connection.processor.mode === Hot.DeveloperMode.Development)
+			verifyCodeOverride = HotStaq.getParamDefault ("verifyCodeOverride", req.jsonObj, "");
 
-		return (verificationCode);
+		const emailConfig: EmailConfig = this.emailConfigs["forgotPassword"];
+
+		let verificationCode: string = await User.forgotPassword (this.db, email, emailConfig, verifyCodeOverride);
+
+		req.passObject.passType = PassType.Update;
+		req.passObject.jsonObj = verificationCode;
+
+		return (true);
 	}
 
 	/**

@@ -23,6 +23,10 @@ export interface IUser
 	 */
 	userType?: string;
 	/**
+	 * The user's display name.
+	 */
+	displayName?: string;
+	/**
 	 * The user's first name.
 	 */
 	firstName?: string;
@@ -128,6 +132,10 @@ export class User implements IUser
 	 */
 	userType: string;
 	/**
+	 * The user's display name.
+	 */
+	displayName: string;
+	/**
 	 * The user's first name.
 	 */
 	firstName: string;
@@ -214,8 +222,14 @@ export class User implements IUser
 	 */
 	static onForgotPasswordUpdate: (user: User) => Promise<void> = null;
 	/**
+	 * The event to fire when a user's password has changed. This updates 
+	 * the user's new password hash and salt in the database.
+	 */
+	static onChangePasswordUpdate: (user: User, 
+		passwordHash: string, passwordSalt: string) => Promise<void> = null;
+	/**
 	 * The event to fire when a user's forgotten password has been reset. This updates 
-	 * the user's new password has and salt in the database.
+	 * the user's new password hash and salt in the database.
 	 */
 	static onResetForgottenPasswordUpdate: (user: User, 
 		passwordHash: string, passwordSalt: string) => Promise<void> = null;
@@ -235,6 +249,7 @@ export class User implements IUser
 		this.enabled = user.enabled || true;
 		this.id = user.id || "";
 		this.userType = user.userType || "user";
+		this.displayName = user.displayName || "";
 		this.firstName = user.firstName || "";
 		this.lastName = user.lastName || "";
 		this.email = user.email || "";
@@ -260,6 +275,7 @@ export class User implements IUser
 			`create table if not exists users (
 					id             BINARY(16)     NOT NULL,
 					userType       VARCHAR(256)   DEFAULT 'user',
+					displayName    VARCHAR(256)   DEFAULT '',
 					firstName      VARCHAR(256)   DEFAULT '',
 					lastName       VARCHAR(256)   DEFAULT '',
 					email          VARCHAR(256)   DEFAULT '',
@@ -268,6 +284,7 @@ export class User implements IUser
 					verifyCode     VARCHAR(256)   DEFAULT '',
 					verified       TINYINT(1)     DEFAULT '0',
 					registeredDate DATETIME       DEFAULT NOW(),
+					deletionDate   DATETIME       DEFAULT NULL,
 					enabled        TINYINT(1)     DEFAULT '1',
 					PRIMARY KEY (id)
 				)`);
@@ -291,6 +308,7 @@ export class User implements IUser
 						new User ({
 							firstName: "John",
 							lastName: "Doe",
+							displayName: "Test1",
 							email: "test1@freelight.org",
 							password: "a867h398jdg",
 							verified: true
@@ -298,6 +316,7 @@ export class User implements IUser
 						new User ({
 							firstName: "Jane",
 							lastName: "Smith",
+							displayName: "Test2",
 							email: "test2@freelight.org",
 							password: "ai97w3a98w3498",
 							verified: true }),
@@ -305,6 +324,7 @@ export class User implements IUser
 							userType: "admin",
 							firstName: "Bob",
 							lastName: "Derp",
+							displayName: "Admin1",
 							email: "admin1@freelight.org",
 							password: "a98j3w987aw3h47u",
 							verified: true })
@@ -353,7 +373,7 @@ export class User implements IUser
 	/**
 	 * Register a user.
 	 */
-	async register (db: HotDBMySQL): Promise<User>
+	async register (db: HotDBMySQL, emailConfig: EmailConfig = null, verifyCode: string = ""): Promise<User>
 	{
 		let tempUser: User | null = await User.getUser (db, this.email);
 
@@ -378,8 +398,16 @@ export class User implements IUser
 				verified = 1;
 		}
 
+		if (verifyCode !== "")
+			verificationCode = verifyCode;
+
 		if (verified === 0)
-			verificationCode = await User.createRandomHash (new Date ().toString ());
+		{
+			if (verifyCode !== "")
+				verificationCode = verifyCode;
+			else
+				verificationCode = await User.createRandomHash (new Date ().toString ());
+		}
 
 		this.verifyCode = verificationCode;
 
@@ -391,9 +419,9 @@ export class User implements IUser
 		}
 
 		let result: any = await db.queryOne (
-			`INSERT INTO users (id, userType, firstName, lastName, email, password, passwordSalt, verifyCode, verified) 
-			VALUES (UNHEX(REPLACE(UUID(),'-','')), ?, ?, ?, ?, ?, ?, ?, ?) returning id;`, 
-			[this.userType, this.firstName, this.lastName, this.email, hash, salt, verificationCode, verified]);
+			`INSERT INTO users (id, userType, displayName, firstName, lastName, email, password, passwordSalt, verifyCode, verified) 
+			VALUES (UNHEX(REPLACE(UUID(),'-','')), ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id;`, 
+			[this.userType, this.displayName, this.firstName, this.lastName, this.email, hash, salt, verificationCode, verified]);
 
 		if (result.error != null)
 			throw new Error (result.error);
@@ -402,6 +430,13 @@ export class User implements IUser
 		let userId: string = User.fromBinaryToUUID (idRaw);
 
 		this.id = userId;
+
+		if (emailConfig != null)
+		{
+			const body: string = emailConfig.body (this, this.verifyCode);
+
+			await User.sendEmail (this.email, emailConfig.subject, body, emailConfig);
+		}
 
 		return (this);
 	}
@@ -431,8 +466,8 @@ export class User implements IUser
 	static async editUser (db: HotDBMySQL, user: User): Promise<void>
 	{
 		let result: any = await db.queryOne (
-			`UPDATE users SET userType = ?, firstName = ?, lastName = ?, email = ?, verified = ? WHERE id = UNHEX(REPLACE(?, '-', ''));`,
-			[user.userType, user.firstName, user.lastName, user.email, user.verified, user.id]);
+			`UPDATE users SET userType = ?, displayName = ?, firstName = ?, lastName = ?, email = ?, verified = ? WHERE id = UNHEX(REPLACE(?, '-', ''));`,
+			[user.userType, user.displayName, user.firstName, user.lastName, user.email, user.verified, user.id]);
 
 		if (result.error != null)
 			throw new Error (result.error);
@@ -601,6 +636,28 @@ export class User implements IUser
 	}
 
 	/**
+	 * Change password.
+	 */
+	static async changePassword (db: HotDBMySQL, user: User, newPassword: string): Promise<void>
+	{
+		const salt: string = await User.generateSalt ();
+		const hash: string = await User.generateHash (newPassword, salt);
+
+		if (User.onChangePasswordUpdate != null)
+			await User.onChangePasswordUpdate (user, hash, salt);
+		else
+		{
+			// Update the user's password in the database.
+			let result = await db.query (
+				`update users set password = ?, passwordSalt = ?, verifyCode = null where id = UNHEX(REPLACE(?,'-',''))`,
+					[hash, salt, user.id]);
+
+			if (result.error != null)
+				throw new Error (result.error);
+		}
+	}
+
+	/**
 	 * Send the verification email.
 	 */
 	static async sendVerificationEmail (user: User, emailConfig: EmailConfig): Promise<void>
@@ -621,21 +678,24 @@ export class User implements IUser
 	/**
 	 * Start the reset of a user's password.
 	 */
-	static async forgotPassword (db: HotDBMySQL, email: string, emailConfig: EmailConfig = null): Promise<string>
+	static async forgotPassword (db: HotDBMySQL, email: string, emailConfig: EmailConfig = null, verifyCode: string = ""): Promise<string>
 	{
-		let user: User = await User.getUser (db, email);
+		let user: User = await User.getUser (db, email, true);
 
 		if (user == null)
 			throw new Error (`User not found.`);
 
-		user.verifyCode = await User.createRandomHash (new Date ().toString ());
+		if (verifyCode !== "")
+			user.verifyCode = verifyCode;
+		else
+			user.verifyCode = await User.createRandomHash (new Date ().toString ());
 
 		if (User.onForgotPasswordUpdate != null)
 			await User.onForgotPasswordUpdate (user);
 		else
 		{
 			let result = await db.query (
-				`update users set verifyCode = ? where id = ?`,
+				`update users set verifyCode = ? where id = UNHEX(REPLACE(?,'-',''))`,
 					[user.verifyCode, user.id]);
 
 			if (result.error != null)
@@ -658,7 +718,7 @@ export class User implements IUser
 	static async resetForgottenPassword (db: HotDBMySQL, email: string, 
 		verificationCode: string, newPassword: string): Promise<void>
 	{
-		let foundUser: User = await User.getUser (db, email);
+		let foundUser: User = await User.getUser (db, email, true);
 
 		if (foundUser == null)
 			throw new Error (`User not found.`);
@@ -675,7 +735,7 @@ export class User implements IUser
 		{
 			// Update the user's password in the database.
 			let result = await db.query (
-				`update users set password = ?, passwordSalt = ?, verifyCode = null where id = ?`,
+				`update users set password = ?, passwordSalt = ?, verifyCode = null where id = UNHEX(REPLACE(?,'-',''))`,
 					[hash, salt, foundUser.id]);
 
 			if (result.error != null)
@@ -721,6 +781,7 @@ export class User implements IUser
 		let user: User = new User ({
 				id: userId,
 				userType: result["userType"],
+				displayName: result["displayName"],
 				firstName: result["firstName"],
 				lastName: result["lastName"],
 				email: result["email"],
@@ -777,7 +838,7 @@ export class User implements IUser
 			rawDBResults = result.results;
 		}
 
-		let user: User = User.getUserFromResult (rawDBResults);
+		let user: User = User.getUserFromResult (rawDBResults, getPassword);
 
 		return (user);
 	}
@@ -826,7 +887,7 @@ export class User implements IUser
 	/**
 	 * Verify and decode a JWT Token.
 	 */
-	static async decodeJWTToken (jwtToken: string): Promise<any>
+	static async decodeJWTToken (jwtToken: string): Promise<IJWTToken>
 	{
 		if (User.jwtSecretKey === "")
 			throw new Error (`A JWT secret key is required to run!`);
@@ -837,9 +898,9 @@ export class User implements IUser
 				throw new Error (`JWT token has been invalidated!`);
 		}
 
-		return (new Promise<string> ((resolve, reject) =>
+		return (new Promise<IJWTToken> ((resolve, reject) =>
 			{
-				jwt.verify (jwtToken, User.jwtSecretKey, (err: Error, decoded: string) =>
+				jwt.verify (jwtToken, User.jwtSecretKey, (err: Error, decoded: IJWTToken) =>
 					{
 						if (err != null)
 							throw new Error (`Unable to verify JWT token!`);
