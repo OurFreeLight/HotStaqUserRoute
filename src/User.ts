@@ -421,7 +421,7 @@ export class User implements IUser
 		let result: any = await db.queryOne (
 			`INSERT INTO users (id, userType, displayName, firstName, lastName, email, password, passwordSalt, verifyCode, verified) 
 			VALUES (UNHEX(REPLACE(UUID(),'-','')), ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id;`, 
-			[this.userType, this.displayName, this.firstName, this.lastName, this.email, hash, salt, verificationCode, verified]);
+			[this.userType, this.displayName, this.firstName, this.lastName, this.email, hash, salt, this.verifyCode, verified]);
 
 		if (result.error != null)
 			throw new Error (result.error);
@@ -640,6 +640,12 @@ export class User implements IUser
 	 */
 	static async changePassword (db: HotDBMySQL, user: User, newPassword: string): Promise<void>
 	{
+		if (newPassword === "")
+			throw new Error (`New password cannot be empty!`);
+
+		if (user.id === "")
+			throw new Error (`No user id supplied!`);
+
 		const salt: string = await User.generateSalt ();
 		const hash: string = await User.generateHash (newPassword, salt);
 
