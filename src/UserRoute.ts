@@ -390,7 +390,7 @@ export class UserRoute extends HotRoute
 
 		await newUser.register (this.db, emailConfig, verifyCodeOverride);
 
-		req.passObject.passType = PassType.Update;
+		req.passObject.passType = PassType.Ignore;
 		req.passObject.jsonObj = { verifyCode: newUser.verifyCode, user: newUser };
 
 		newUser.verifyCode = "";
