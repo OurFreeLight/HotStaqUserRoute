@@ -375,6 +375,8 @@ export class User implements IUser
 	 */
 	async register (db: HotDBMySQL, emailConfig: EmailConfig = null, verifyCode: string = ""): Promise<User>
 	{
+		this.email = this.email.toLowerCase ();
+
 		let tempUser: User | null = await User.getUser (db, this.email);
 
 		if (tempUser != null)
@@ -505,9 +507,16 @@ export class User implements IUser
 		let foundUser: User = null;
 
 		if (typeof (ip) === "string")
+		{
+			email = email.toLowerCase ();
+
 			foundUser = await User.getUser (db, email, true);
+		}
 		else
+		{
 			foundUser = ip;
+			foundUser.email = foundUser.email.toLowerCase ();
+		}
 
 		if (foundUser == null)
 			throw new Error (`Wrong email or password.`);
