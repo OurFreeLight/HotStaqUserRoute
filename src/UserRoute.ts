@@ -31,6 +31,10 @@ export class UserRoute extends HotRoute
 	 */
 	onRegisteringRoute: ((db: HotDBMySQL) => Promise<void>);
 	/**
+	 * Executes before the route is registered with the web server.
+	 */
+	onUserPreRegisterRoute: () => Promise<void>;
+	/**
 	 * Test user data to use for executing tests.
 	 */
 	testUser: {
@@ -82,7 +86,7 @@ export class UserRoute extends HotRoute
 
 				return (true);
 			};
-		this.onPreRegister = async () =>
+		this.onUserPreRegisterRoute = async () =>
 			{
 				let userObjectDesc: HotRouteMethodParameter = {
 					"type": "object",
@@ -361,6 +365,7 @@ export class UserRoute extends HotRoute
 					]
 				});
 			};
+		this.onPreRegister = this.onUserPreRegisterRoute;
 	}
 
 	/**

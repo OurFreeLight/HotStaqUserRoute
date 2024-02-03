@@ -20,6 +20,10 @@ export class AdminRoute extends UserRoute
 	 */
 	methodsRequireAuthType: string;
 	/**
+	 * Executes before the route is registered with the web server.
+	 */
+	onAdminPreRegisterRoute: () => Promise<void>;
+	/**
 	 * The database connection.
 	 */
 	db: HotDBMySQL;
@@ -30,7 +34,7 @@ export class AdminRoute extends UserRoute
 
 		this.methodsRequireAuthType = "admin";
 
-		this.onPreRegister = async () =>
+		this.onAdminPreRegisterRoute = async () =>
 			{
 				let userObjectDesc: HotRouteMethodParameter = {
 						"type": "object",
@@ -114,6 +118,11 @@ export class AdminRoute extends UserRoute
 							}
 						]
 					});
+			};
+		this.onPreRegister = async () =>
+			{
+				await this.onUserPreRegisterRoute ();
+				await this.onAdminPreRegisterRoute ();
 			};
 	}
 
