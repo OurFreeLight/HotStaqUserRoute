@@ -297,46 +297,64 @@ export class User implements IUser
 					logOutDate     DATETIME       DEFAULT NULL,
 					PRIMARY KEY (id)
 				)`);
+	}
 
-		if (debug == true)
+	/**
+	 * Checks if the users table is empty.
+	 * 
+	 * @returns Returns true if the users table is empty.
+	 */
+	static async checkForEmptyUsers (db: HotDBMySQL): Promise<boolean>
+	{
+		let results: MySQLResults = await db.queryOne (`select COUNT(*) from users;`);
+
+		if (results.results["COUNT(*)"] < 1)
+			return (true);
+
+		return (false);
+	}
+
+	/**
+	 * Seed the users table.
+	 * 
+	 * @param testPlayers The test players to seed. If the array is empty, it will use the default test players.
+	 */
+	static async seedUsers (db: HotDBMySQL, testPlayers: User[] = []): Promise<void>
+	{
+		if (testPlayers.length < 1)
 		{
-			let results: MySQLResults = await db.queryOne (`select COUNT(*) from users;`);
+			testPlayers = [
+					new User ({
+						firstName: "John",
+						lastName: "Doe",
+						displayName: "Test1",
+						email: "test1@freelight.org",
+						password: "a867h398jdg",
+						verified: true
+					}),
+					new User ({
+						firstName: "Jane",
+						lastName: "Smith",
+						displayName: "Test2",
+						email: "test2@freelight.org",
+						password: "ai97w3a98w3498",
+						verified: true }),
+					new User ({
+						userType: "admin",
+						firstName: "Bob",
+						lastName: "Derp",
+						displayName: "Admin1",
+						email: "admin1@freelight.org",
+						password: "a98j3w987aw3h47u",
+						verified: true })
+				];
+		}
 
-			if (results.results["COUNT(*)"] < 1)
-			{
-				let testPlayers = [
-						new User ({
-							firstName: "John",
-							lastName: "Doe",
-							displayName: "Test1",
-							email: "test1@freelight.org",
-							password: "a867h398jdg",
-							verified: true
-						}),
-						new User ({
-							firstName: "Jane",
-							lastName: "Smith",
-							displayName: "Test2",
-							email: "test2@freelight.org",
-							password: "ai97w3a98w3498",
-							verified: true }),
-						new User ({
-							userType: "admin",
-							firstName: "Bob",
-							lastName: "Derp",
-							displayName: "Admin1",
-							email: "admin1@freelight.org",
-							password: "a98j3w987aw3h47u",
-							verified: true })
-					];
+		for (let iIdx = 0; iIdx < testPlayers.length; iIdx++)
+		{
+			let testPlayer = testPlayers[iIdx];
 
-				for (let iIdx = 0; iIdx < testPlayers.length; iIdx++)
-				{
-					let testPlayer = testPlayers[iIdx];
-
-					await testPlayer.register (db);
-				}
-			}
+			await testPlayer.register (db);
 		}
 	}
 
