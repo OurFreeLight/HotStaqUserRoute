@@ -208,7 +208,7 @@ export class User implements IUser
 	 * The regex to use to check for a valid display name. If displayNameValidateRegEx is
 	 * set to null, this will not be used.
 	 */
-	static displayNameValidateRegEx: RegExp = /\S+@\S+\.\S+/;
+	static displayNameValidateRegEx: RegExp = /^[A-Za-z0-9_]+$/;
 	/**
 	 * The event to fire when a user is registered into the database.
 	 * This must return a user, WITH A USER ID SET.
