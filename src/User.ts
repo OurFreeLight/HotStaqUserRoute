@@ -184,6 +184,32 @@ export class User implements IUser
 	 */
 	static jwtSecretKey: string = process.env["JWT_SECRET_KEY"] || "";
 	/**
+	 * The minimum length of an email.
+	 */
+	static minEmailLength: number = 3;
+	/**
+	 * The maximum length of an email.
+	 */
+	static maxEmailLength: number = 32;
+	/**
+	 * The regex to use to check for a valid email. If emailValidateRegEx is 
+	 * set to null, this will not be used.
+	 */
+	static emailValidateRegEx: RegExp = /\S+@\S+\.\S+/;
+	/**
+	 * The minimum length of a display name.
+	 */
+	static minDisplayNameLength: number = 3;
+	/**
+	 * The maximum length of a display name.
+	 */
+	static maxDisplayNameLength: number = 32;
+	/**
+	 * The regex to use to check for a valid display name. If displayNameValidateRegEx is
+	 * set to null, this will not be used.
+	 */
+	static displayNameValidateRegEx: RegExp = /\S+@\S+\.\S+/;
+	/**
 	 * The event to fire when a user is registered into the database.
 	 * This must return a user, WITH A USER ID SET.
 	 */
@@ -359,6 +385,38 @@ export class User implements IUser
 	}
 
 	/**
+	 * Check if this is a valid email.
+	 */
+	public static validateEmail (email: string): boolean
+	{
+		if (email.length < User.minEmailLength)
+			return (false);
+
+		if (email.length >= User.maxEmailLength)
+			return (false);
+
+		const re: RegExp = User.emailValidateRegEx;
+
+		return (re.test (email));
+	}
+
+	/**
+	 * Check if the display name is valid.
+	 */
+	public static validateDisplayName (displayName: string): boolean
+	{
+		if (displayName.length < User.minDisplayNameLength)
+			return (false);
+
+		if (displayName.length >= User.maxDisplayNameLength)
+			return (false);
+
+		const re: RegExp = User.displayNameValidateRegEx;
+
+		return (re.test (displayName));
+	}
+
+	/**
 	 * Generate salt for a hash.
 	 */
 	protected static async generateSalt (): Promise<string>
@@ -394,6 +452,18 @@ export class User implements IUser
 	async register (db: HotDBMySQL, emailConfig: EmailConfig = null, verifyCode: string = ""): Promise<User>
 	{
 		this.email = this.email.toLowerCase ();
+
+		if (User.emailValidateRegEx != null)
+		{
+			if (User.validateEmail (this.email) === false)
+				throw new Error (`Invalid email.`);
+		}
+
+		if (User.displayNameValidateRegEx != null)
+		{
+			if (User.validateDisplayName (this.displayName) === false)
+				throw new Error (`Invalid display name.`);
+		}
 
 		let tempUser: User | null = await User.getUser (db, this.email);
 
