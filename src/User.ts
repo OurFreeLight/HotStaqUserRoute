@@ -334,6 +334,9 @@ export class User implements IUser
 	{
 		let results: MySQLResults = await db.queryOne (`select COUNT(*) from users;`);
 
+		if (results.error != null)
+			throw new Error (results.error);
+
 		if (results.results["COUNT(*)"] < 1)
 			return (true);
 
