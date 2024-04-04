@@ -1,7 +1,7 @@
 {
   "name": "@hotstaq/userroute",
   "description": "A user route for HotStaq. Allows users to be created/edited/deleted securely.",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "main": "build/src/index.js",
   "scripts": {
     "test": "hotstaq --dev --env-file .env run --server-type api --api-test",
