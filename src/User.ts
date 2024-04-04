@@ -272,7 +272,7 @@ export class User implements IUser
 
 	constructor (user: IUser = {})
 	{
-		this.enabled = user.enabled || true;
+		this.enabled = user.enabled ?? true;
 		this.id = user.id || "";
 		this.userType = user.userType || "user";
 		this.displayName = user.displayName || "";
@@ -284,7 +284,7 @@ export class User implements IUser
 		this.verifyCode = user.verifyCode || "";
 		this.registeredDate = user.registeredDate || null;
 		this.loginDate = user.loginDate || null
-		this.verified = user.verified || false;
+		this.verified = user.verified ?? false;
 		this.ip = user.ip || "";
 		this.jwtToken = user.jwtToken || "";
 	}
