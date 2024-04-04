@@ -512,9 +512,9 @@ export class User implements IUser
 		}
 
 		let result: any = await db.queryOne (
-			`INSERT INTO users (id, userType, displayName, firstName, lastName, email, password, passwordSalt, verifyCode, verified) 
-			VALUES (UNHEX(REPLACE(UUID(),'-','')), ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id;`, 
-			[this.userType, this.displayName, this.firstName, this.lastName, this.email, hash, salt, this.verifyCode, verified]);
+			`INSERT INTO users (id, userType, displayName, firstName, lastName, email, password, passwordSalt, verifyCode, verified, enabled) 
+			VALUES (UNHEX(REPLACE(UUID(),'-','')), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id;`, 
+			[this.userType, this.displayName, this.firstName, this.lastName, this.email, hash, salt, this.verifyCode, verified, this.enabled]);
 
 		if (result.error != null)
 			throw new Error (result.error);
@@ -553,14 +553,14 @@ export class User implements IUser
 	}
 
 	/**
-	 * Edit a user. Intended for admin usage. DOES NOT check any JWT tokens
+	 * Edit a user. Intended for admin usage or the user trying to edit their account. THIS DOES NOT check any JWT tokens
 	 * or any other user permissions.
 	 */
 	static async editUser (db: HotDBMySQL, user: User): Promise<void>
 	{
 		let result: any = await db.queryOne (
-			`UPDATE users SET userType = ?, displayName = ?, firstName = ?, lastName = ?, email = ?, verified = ? WHERE id = UNHEX(REPLACE(?, '-', ''));`,
-			[user.userType, user.displayName, user.firstName, user.lastName, user.email, user.verified, user.id]);
+			`UPDATE users SET userType = ?, displayName = ?, firstName = ?, lastName = ?, email = ?, verified = ?, enabled = ? WHERE id = UNHEX(REPLACE(?, '-', ''));`,
+			[user.userType, user.displayName, user.firstName, user.lastName, user.email, user.verified, user.enabled, user.id]);
 
 		if (result.error != null)
 			throw new Error (result.error);
