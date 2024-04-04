@@ -896,9 +896,15 @@ export class User implements IUser
 				verifyCode: result["verifyCode"],
 				registeredDate: result["registeredDate"],
 				loginDate: result["loginDate"],
-				enabled: result["enabled"], 
-				verified: result["verified"]
+				enabled: true, 
+				verified: true
 			});
+
+		if (result["enabled"] === 0)
+			user.enabled = false;
+
+		if (result["verified"] === 0)
+			user.verified = false;
 
 		// Only get the password/verify code if explicitly told to do so.
 		if (getPassword === false)
