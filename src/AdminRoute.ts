@@ -93,10 +93,38 @@ export class AdminRoute extends UserRoute
 						]
 					});
 				this.addMethod ({
+						"name": "getUser",
+						"onServerExecute": this.getUser,
+						"description": `Get a user.`,
+						"parameters": {
+							"id": {
+								"type": "string",
+								"required": true,
+								"description": "The id of the user to retrieve."
+							}
+						},
+						"returns": userObjectDesc,
+						"testCases": [
+							"getUserTest",
+							async (driver: HotTestDriver): Promise<any> =>
+							{
+								// @ts-ignore
+								let resp = await api.admins.getUser ();
+		
+								driver.assert (resp.error == null, "Users was not returned.");
+							}
+						]
+					});
+				this.addMethod ({
 						"name": "listUsers",
 						"onServerExecute": this.listUsers,
 						"description": `Lists all users.`,
 						"parameters": {
+							"search": {
+								"type": "string",
+								"required": false,
+								"description": "Searches for a user by their first name, last name, or email."
+							},
 							"offset": {
 								"type": "int",
 								"required": false
@@ -208,6 +236,20 @@ export class AdminRoute extends UserRoute
 		await User.changePassword (this.db, user, newPassword);
 
 		return (true);
+	}
+
+	/**
+	 * Get a user.
+	 */
+	protected async getUser (req: ServerRequest): Promise<any>
+	{
+		await this.checkAuth (req);
+
+		const id: string = HotStaq.getParam ("id", req.jsonObj);
+
+		let user = await User.getUserById (this.db, id, false);
+
+		return (user);
 	}
 
 	/**

@@ -561,23 +561,76 @@ export class User implements IUser
 	 * Edit a user. Intended for admin usage or the user trying to edit their account. THIS DOES NOT check any JWT tokens
 	 * or any other user permissions.
 	 */
-	static async editUser (db: HotDBMySQL, user: User): Promise<void>
+	static async editUser (db: HotDBMySQL, user: IUser): Promise<void>
 	{
-		let enabled = 1;
-		let verified = 1;
+		let keyValues: string = "";
+		let values: any[] = [];
 
-		if (user.enabled === false)
-			enabled = 0;
+		if (user.userType != null)
+		{
+			keyValues += `userType = ?,`;
+			values.push (user.userType);
+		}
 
-		if (user.verified === false)
-			verified = 0;
+		if (user.displayName != null)
+		{
+			keyValues += `displayName = ?,`;
+			values.push (user.displayName);
+		}
 
-		let result: any = await db.queryOne (
-			`UPDATE users SET userType = ?, displayName = ?, firstName = ?, lastName = ?, email = ?, verified = ?, enabled = ? WHERE id = UNHEX(REPLACE(?, '-', ''));`,
-			[user.userType, user.displayName, user.firstName, user.lastName, user.email, verified, enabled, user.id]);
+		if (user.firstName != null)
+		{
+			keyValues += `firstName = ?,`;
+			values.push (user.firstName);
+		}
 
-		if (result.error != null)
-			throw new Error (result.error);
+		if (user.lastName != null)
+		{
+			keyValues += `lastName = ?,`;
+			values.push (user.lastName);
+		}
+
+		if (user.email != null)
+		{
+			keyValues += `email = ?,`;
+			values.push (user.email);
+		}
+
+		if (user.verified != null)
+		{
+			let verified = 1;
+
+			if (user.verified === false)
+				verified = 0;
+
+			keyValues += `verified = ?,`;
+			values.push (verified);
+		}
+
+		if (user.enabled != null)
+		{
+			let enabled = 1;
+
+			if (user.enabled === false)
+				enabled = 0;
+
+			keyValues += `enabled = ?,`;
+			values.push (enabled);
+		}
+
+		if (keyValues !== "")
+		{
+			keyValues = keyValues.substr (0, keyValues.length - 1);
+
+			values.push (user.id);
+
+			let result: any = await db.queryOne (
+				`UPDATE users SET ${keyValues} WHERE id = UNHEX(REPLACE(?, '-', ''));`,
+				values);
+
+			if (result.error != null)
+				throw new Error (result.error);
+		}
 	}
 
 	/**
@@ -908,8 +961,8 @@ export class User implements IUser
 				password: result["password"],
 				passwordSalt: result["passwordSalt"],
 				verifyCode: result["verifyCode"],
-				registeredDate: result["registeredDate"],
-				loginDate: result["loginDate"],
+				registeredDate: new Date (result["registeredDate"]),
+				loginDate: new Date (result["loginDate"]),
 				enabled: true, 
 				verified: true
 			});
@@ -951,6 +1004,44 @@ export class User implements IUser
 		else
 		{
 			let result: MySQLResults = await db.queryOne (`select * from users where email = ?;`, [email]);
+
+			if (result == null)
+				return (null);
+
+			if (result.error != null)
+				return (null);
+
+			if (result.results == null)
+				return (null);
+
+			rawDBResults = result.results;
+		}
+
+		let user: User = User.getUserFromResult (rawDBResults, getPassword);
+
+		return (user);
+	}
+
+	/**
+	 * Get user by their by. This WILL NOT return the current user's api key or secret.
+	 * 
+	 * @param getPassword If set to true, this will return the user's password, salt, and verifyCode.
+	 * ONLY USE THIS WHEN NECESSARY.
+	 */
+	static async getUserById (db: HotDBMySQL, id: string, getPassword: boolean = false): Promise<User | null>
+	{
+		let rawDBResults: any = null;
+
+		if (User.onGetUserSelect != null)
+		{
+			rawDBResults = await User.onGetUserSelect (id);
+
+			if (rawDBResults == null)
+				return (null);
+		}
+		else
+		{
+			let result: MySQLResults = await db.queryOne (`select * from users where id = ?;`, [id]);
 
 			if (result == null)
 				return (null);
