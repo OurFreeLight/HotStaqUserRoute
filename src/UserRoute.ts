@@ -373,6 +373,9 @@ export class UserRoute extends HotRoute
 	 * will not have password, passwordSalt, or verifyCode set. To access 
 	 * the result of verifyCode, you can access it via onServerPostExecute 
 	 * and access the req.passObject.jsonObj.verifyCode property.
+	 * 
+	 * The data passed in req.passObject.jsonObj will contain the following:
+	 * { verifyCode: string;, user: User; }
 	 */
 	protected async register (req: ServerRequest): Promise<any>
 	{
@@ -405,8 +408,11 @@ export class UserRoute extends HotRoute
 
 	/**
 	 * The user login.
+	 * 
+	 * The data passed in req.passObject.jsonObj will contain the following:
+	 * { ip: string; verifyCode: string; user: User; }
 	 */
-	protected async login (req: ServerRequest): Promise<any>
+	protected async login (req: ServerRequest): Promise<User>
 	{
 		const user: User = HotStaq.getParam ("user", req.jsonObj);
 
@@ -414,13 +420,19 @@ export class UserRoute extends HotRoute
 		const password: string = HotStaq.getParam ("password", user);
 		const ip: string = (<string>req.req.headers["x-forwarded-for"]) || req.req.socket.remoteAddress;
 
-		let userInfo: User = await User.login (this.db, ip, email, password);
+		let userInfo: User = await User.login (this.db, ip, email, password, false);
+
+		req.passObject.passType = PassType.Ignore;
+		req.passObject.jsonObj = { ip: ip, verifyCode: userInfo.verifyCode, user: userInfo };
 
 		return (userInfo);
 	}
 
 	/**
 	 * Verify a user.
+	 * 
+	 * The data passed in req.passObject.jsonObj will contain the following:
+	 * { email: string; }
 	 */
 	protected async verifyUser (req: ServerRequest): Promise<any>
 	{
@@ -429,17 +441,26 @@ export class UserRoute extends HotRoute
 
 		await User.verifyUser (this.db, email, verificationCode);
 
+		req.passObject.passType = PassType.Ignore;
+		req.passObject.jsonObj = { email: email };
+
 		return (true);
 	}
 
 	/**
 	 * The user logout.
+	 * 
+	 * The data passed in req.passObject.jsonObj will contain the following:
+	 * { jwtToken: string; }
 	 */
 	protected async logOut (req: ServerRequest): Promise<any>
 	{
 		const jwtToken: string = HotStaq.getParam ("jwtToken", req.jsonObj);
 
 		await User.logOut (this.db, jwtToken);
+
+		req.passObject.passType = PassType.Ignore;
+		req.passObject.jsonObj = { jwtToken: jwtToken };
 
 		return (true);
 	}
@@ -449,6 +470,9 @@ export class UserRoute extends HotRoute
 	 * verification code (called verifyCode) is generated to be consumed by the backend. To access 
 	 * the result of verifyCode, you can access it via onServerPostExecute 
 	 * and access the req.passObject.jsonObj.verifyCode property.
+	 * 
+	 * The data passed in req.passObject.jsonObj will be an update containing the following:
+	 * verificationCode: string;
 	 */
 	protected async forgotPassword (req: ServerRequest): Promise<boolean>
 	{

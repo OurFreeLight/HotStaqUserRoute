@@ -227,6 +227,11 @@ export class User implements IUser
 	 */
 	static onLoginInsertUserLogin: (user: User, ip: string) => Promise<string> = null;
 	/**
+	 * The event to fire when a user has successfully logged in, and the 
+	 * JWT token needs to be generated to be passed to the end user.
+	 */
+	static onLoginGenerateJWTToken: (user: User, ip: string, userId: string) => Promise<string> = null;
+	/**
 	 * The event to fire when a user has successfully logged out, and their 
 	 * JWT token invalidated. This updates the user login record in the database
 	 * to indicate when the user has logged out.
@@ -747,7 +752,10 @@ export class User implements IUser
 			userLoginId = User.fromBinaryToUUID (idRaw);
 		}
 
-		foundUser.jwtToken = await User.generateJWTToken ({ user: foundUser, ip: ip, userLoginId: userLoginId });
+		if (User.onLoginGenerateJWTToken != null)
+			foundUser.jwtToken = await User.onLoginGenerateJWTToken (foundUser, foundUser.ip, userLoginId);
+		else
+			foundUser.jwtToken = await User.generateJWTToken ({ user: foundUser, ip: ip, userLoginId: userLoginId });
 
 		return (foundUser);
 	}
