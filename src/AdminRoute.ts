@@ -1,6 +1,6 @@
 import * as ppath from "path";
 
-import { HotRoute, ServerRequest, HotTestDriver, HotStaq, HotServerType, HotDBMySQL, ConnectionStatus, HotAPI } from "hotstaq";
+import { HotRoute, ServerRequest, HotTestDriver, HotStaq, HotServerType, HotDBMySQL, ConnectionStatus, HotAPI, HotDBType } from "hotstaq";
 import { IJWTToken, IUser, User } from "./User";
 import { UserRoute } from "./UserRoute";
 import { HotRouteMethodParameter, PassType } from "hotstaq/build/src/HotRouteMethod";
@@ -264,11 +264,19 @@ export class AdminRoute extends UserRoute
 		const limit: number = HotStaq.getParamDefault ("limit", req.jsonObj, 20);
 
 		let query: string = `SELECT * FROM users LIMIT ?, ?;`;
+
+		if (this.db.type === HotDBType.Postgres)
+			query = `SELECT * FROM users OFFSET $1 LIMIT $2;`;
+
 		let args: any[] = [offset, limit];
 
 		if (search != null)
 		{
 			query = `SELECT * FROM users WHERE firstName LIKE ? OR lastName LIKE ? OR email LIKE ? LIMIT ?, ?;`;
+
+			if (this.db.type === HotDBType.Postgres)
+				query = `SELECT * FROM users WHERE firstName LIKE $1 OR lastName LIKE $2 OR email LIKE $3 OFFSET $4 LIMIT $5;`;
+
 			args = [`%${search}%`, `%${search}%`, `%${search}%`, offset, limit];
 		}
 
