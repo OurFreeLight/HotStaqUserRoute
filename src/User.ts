@@ -303,7 +303,7 @@ export class User implements IUser
 	}
 
 	/**
-	 * Sync the table.
+	 * Sync the table. This will create the tables if they do not already exist.
 	 */
 	static async syncTables (db: HotDB, debug: boolean): Promise<void>
 	{
@@ -374,6 +374,8 @@ export class User implements IUser
 	/**
 	 * Checks if the users table is empty.
 	 * 
+	 * This performs a select on the users table.
+	 * 
 	 * @returns Returns true if the users table is empty.
 	 */
 	static async checkForEmptyUsers (db: HotDB): Promise<boolean>
@@ -390,7 +392,7 @@ export class User implements IUser
 	}
 
 	/**
-	 * Seed the users table.
+	 * Seed the users table. This performs an insert for multiple users on the users table.
 	 * 
 	 * @param testPlayers The test players to seed. If the array is empty, it will use the default test players.
 	 */
@@ -531,7 +533,7 @@ export class User implements IUser
 	}
 
 	/**
-	 * Register a user.
+	 * Register a user. This will perform an insert on the users table.
 	 */
 	async register (db: HotDB, emailConfig: EmailConfig = null, verifyCode: string = ""): Promise<User>
 	{
@@ -658,6 +660,8 @@ export class User implements IUser
 	/**
 	 * Get a user's logins. Intended for admin usage. 
 	 * DOES NOT check any JWT tokens or any other user permissions.
+	 * 
+	 * This will perform a select on the user_logins table.
 	 */
 	static async getUserLogins (db: HotDB, user: User, offset: number = 0, limit: number = 1): Promise<any[]>
 	{
@@ -672,6 +676,8 @@ export class User implements IUser
 	/**
 	 * Edit a user. Intended for admin usage or the user trying to edit their account. THIS DOES NOT check any JWT tokens
 	 * or any other user permissions.
+	 * 
+	 * This updates the users table.
 	 */
 	static async editUser (db: HotDB, user: IUser): Promise<void>
 	{
@@ -791,6 +797,8 @@ export class User implements IUser
 	/**
 	 * Delete a user. Intended for admin usage. DOES NOT check any JWT tokens
 	 * or any other user permissions.
+	 * 
+	 * This performs a delete on the users table.
 	 */
 	static async deleteUser (db: HotDB, user: User): Promise<void>
 	{
@@ -807,6 +815,8 @@ export class User implements IUser
 
 	/**
 	 * Have a user authenticate and login.
+	 * 
+	 * This performs a select on the users table and an insert on the user_logins table.
 	 * 
 	 * @param db The connected database.
 	 * @param ip The IP address of the user. If this is a User object, it will not 
@@ -950,6 +960,8 @@ export class User implements IUser
 
 	/**
 	 * Log out.
+	 * 
+	 * This performs an update on the user_logins table.
 	 */
 	static async logOut (db: HotDB, jwtToken: string): Promise<void>
 	{
@@ -977,6 +989,8 @@ export class User implements IUser
 
 	/**
 	 * Verify a user.
+	 * 
+	 * This performs an update on the users table.
 	 */
 	static async verifyUser (db: HotDB, email: string, verificationCode: string): Promise<void>
 	{
@@ -1006,6 +1020,8 @@ export class User implements IUser
 
 	/**
 	 * Change password.
+	 * 
+	 * This performs an update on the users table.
 	 */
 	static async changePassword (db: HotDB, user: User, newPassword: string): Promise<void>
 	{
@@ -1067,6 +1083,8 @@ export class User implements IUser
 
 	/**
 	 * Start the reset of a user's password.
+	 * 
+	 * This performs an update on the users table.
 	 */
 	static async forgotPassword (db: HotDB, email: string, emailConfig: EmailConfig = null, verifyCode: string = ""): Promise<string>
 	{
@@ -1107,6 +1125,8 @@ export class User implements IUser
 
 	/**
 	 * Reset a user's password.
+	 * 
+	 * This performs an update on the users table.
 	 */
 	static async resetForgottenPassword (db: HotDB, email: string, 
 		verificationCode: string, newPassword: string): Promise<void>
@@ -1210,6 +1230,8 @@ export class User implements IUser
 	/**
 	 * Get user by their email. This WILL NOT return the current user's api key or secret.
 	 * 
+	 * This performs a select on the users table.
+	 * 
 	 * @param getPassword If set to true, this will return the user's password, salt, and verifyCode.
 	 * ONLY USE THIS WHEN NECESSARY.
 	 */
@@ -1252,6 +1274,8 @@ export class User implements IUser
 
 	/**
 	 * Get user by their by. This WILL NOT return the current user's api key or secret.
+	 * 
+	 * This performs a select on the users table.
 	 * 
 	 * @param getPassword If set to true, this will return the user's password, salt, and verifyCode.
 	 * ONLY USE THIS WHEN NECESSARY.

@@ -254,6 +254,8 @@ export class AdminRoute extends UserRoute
 
 	/**
 	 * List users.
+	 * 
+	 * This performs a select on the users table.
 	 */
 	protected async listUsers (req: ServerRequest): Promise<any>
 	{
