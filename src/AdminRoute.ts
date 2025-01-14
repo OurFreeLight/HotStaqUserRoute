@@ -1,6 +1,6 @@
 import * as ppath from "path";
 
-import { HotRoute, ServerRequest, HotTestDriver, HotStaq, HotServerType, HotDBMySQL, ConnectionStatus, HotAPI } from "hotstaq";
+import { HotRoute, ServerRequest, HotTestDriver, HotStaq, HotServerType, HotDBMySQL, ConnectionStatus, HotAPI, HotDBType } from "hotstaq";
 import { IJWTToken, IUser, User } from "./User";
 import { UserRoute } from "./UserRoute";
 import { HotRouteMethodParameter, PassType } from "hotstaq/build/src/HotRouteMethod";
@@ -93,10 +93,38 @@ export class AdminRoute extends UserRoute
 						]
 					});
 				this.addMethod ({
+						"name": "getUser",
+						"onServerExecute": this.getUser,
+						"description": `Get a user.`,
+						"parameters": {
+							"id": {
+								"type": "string",
+								"required": true,
+								"description": "The id of the user to retrieve."
+							}
+						},
+						"returns": userObjectDesc,
+						"testCases": [
+							"getUserTest",
+							async (driver: HotTestDriver): Promise<any> =>
+							{
+								// @ts-ignore
+								let resp = await api.admins.getUser ();
+		
+								driver.assert (resp.error == null, "Users was not returned.");
+							}
+						]
+					});
+				this.addMethod ({
 						"name": "listUsers",
 						"onServerExecute": this.listUsers,
 						"description": `Lists all users.`,
 						"parameters": {
+							"search": {
+								"type": "string",
+								"required": false,
+								"description": "Searches for a user by their first name, last name, or email."
+							},
 							"offset": {
 								"type": "int",
 								"required": false
@@ -211,7 +239,23 @@ export class AdminRoute extends UserRoute
 	}
 
 	/**
+	 * Get a user.
+	 */
+	protected async getUser (req: ServerRequest): Promise<any>
+	{
+		await this.checkAuth (req);
+
+		const id: string = HotStaq.getParam ("id", req.jsonObj);
+
+		let user = await User.getUserById (this.db, id, false);
+
+		return (user);
+	}
+
+	/**
 	 * List users.
+	 * 
+	 * This performs a select on the users table.
 	 */
 	protected async listUsers (req: ServerRequest): Promise<any>
 	{
@@ -222,11 +266,19 @@ export class AdminRoute extends UserRoute
 		const limit: number = HotStaq.getParamDefault ("limit", req.jsonObj, 20);
 
 		let query: string = `SELECT * FROM users LIMIT ?, ?;`;
+
+		if (this.db.type === HotDBType.Postgres)
+			query = `SELECT * FROM users OFFSET $1 LIMIT $2;`;
+
 		let args: any[] = [offset, limit];
 
 		if (search != null)
 		{
 			query = `SELECT * FROM users WHERE firstName LIKE ? OR lastName LIKE ? OR email LIKE ? LIMIT ?, ?;`;
+
+			if (this.db.type === HotDBType.Postgres)
+				query = `SELECT * FROM users WHERE firstName LIKE $1 OR lastName LIKE $2 OR email LIKE $3 OFFSET $4 LIMIT $5;`;
+
 			args = [`%${search}%`, `%${search}%`, `%${search}%`, offset, limit];
 		}
 
