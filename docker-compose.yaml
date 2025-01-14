@@ -14,10 +14,10 @@ services:
     networks:
       - app-network
 
-  init-database-postgres:
+  init-app-postgres:
     image: postgres:17
     depends_on:
-      database-postgres:
+      app-postgres:
         condition: service_healthy
     command: 
       - "exit 0"
@@ -29,9 +29,10 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "127.0.0.1"]
-      retries: 10
-      timeout: 10s
+      test: ["CMD", "mariadb-admin" ,"ping", "-h", "127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     ports:
       - "${DATABASE_PORT}:3306"
     environment:
