@@ -274,10 +274,10 @@ export class AdminRoute extends UserRoute
 
 		if (search != null)
 		{
-			query = `SELECT * FROM users WHERE firstName LIKE ? OR lastName LIKE ? OR email LIKE ? LIMIT ?, ?;`;
+			query = `SELECT * FROM users WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? LIMIT ?, ?;`;
 
 			if (this.db.type === HotDBType.Postgres)
-				query = `SELECT * FROM users WHERE firstName LIKE $1 OR lastName LIKE $2 OR email LIKE $3 OFFSET $4 LIMIT $5;`;
+				query = `SELECT * FROM users WHERE first_name LIKE $1 OR last_name LIKE $2 OR email LIKE $3 OFFSET $4 LIMIT $5;`;
 
 			args = [`%${search}%`, `%${search}%`, `%${search}%`, offset, limit];
 		}

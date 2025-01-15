@@ -1,32 +1,42 @@
 # HotStaq User Route
-This application was bootstrapped with [HotStaq](https://www.github.com/OurFreeLight/HotStaq)
+Documentation is coming...
+
+This supports MariaDB and PostgreSQL databases. MySQL support is experimental and most likely does not work!
+
+For API documentation, please see the [OpenAPI Documentation](./api.md)
 
 ## Getting Started
-Navigate to the project's directory then enter:
-
-	npm run build
-
-This will transpile the TypeScript into ES6 JavaScript by default. After this is done building, enter: 
-			
-	npm run dev
-
-This will launch the web server in development mode. Open a web browser and navigate to https://127.0.0.1:8080 to see the example page!
-
-## Docker
-To build the docker images navigate to the project's directory and enter:
+Simply install this package into your HotStaq project by doing:
 ```console
-hotstaq build
+npm install @hotstaq/userroute
 ```
 
-This will build the Dockerfile. After which you can navigate into your output directory and enter:
-```console
-./build.sh
+Then in your code base, navigate to your API that extends the HotAPI class and add the new route:
+```javascript
+this.addRoute (new UserRoute (this));
 ```
 
-To start the docker image, run:
-```console
-./start-app.sh
-```
+Now your API will have the user route available with all the endpoints listed in the OpenAPI documentation.
+
+**NOTE** The environment variable `JWT_SECRET_KEY` is required for this package to work. This is the secret key used to sign the JWT tokens.
+
+## Environment Variables
+* JWT_SECRET_KEY
+    * Description: The JWT secret key to use for signing tokens.
+    * Type: string
+    * Default: 
+* AUTO_VERIFY_USERS
+    * Description: If set to 1, users will be automatically verified upon registration. This is mostly for development purposes.
+    * Type: number
+    * Default: 0
+* DISABLE_REHASHING
+    * Description: If set to 1, passwords will not be rehashed after a successful login.
+    * Type: number
+    * Default: 0
+* DATABASE_DISABLE
+    * Description: If set to 1, a database connection will not be established.
+    * Type: number
+    * Default: 0
 
 ## API Generation
 To generate a web client for use on a website enter:
