@@ -14,16 +14,6 @@ services:
     networks:
       - app-network
 
-  init-app-postgres:
-    image: postgres:17
-    depends_on:
-      app-postgres:
-        condition: service_healthy
-    command: 
-      - "exit 0"
-    networks:
-      - app-network
-
   app-database:
     image: mariadb:11.6
     networks:
@@ -34,12 +24,54 @@ services:
       timeout: 5s
       retries: 5
     ports:
-      - "${DATABASE_PORT}:3306"
+      - "${MARIADB_PORT}:3306"
     environment:
       MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
       MYSQL_DATABASE: "${DATABASE_SCHEMA}"
       MYSQL_USER: "${DATABASE_USERNAME}"
       MYSQL_PASSWORD: "${DATABASE_PASSWORD}"
+
+  init-app-mysql:
+    image: mysql:9.1
+    depends_on:
+      app-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_DATABASE: "${DATABASE_SCHEMA}"
+      MYSQL_USER: "${DATABASE_USERNAME}"
+      MYSQL_PASSWORD: "${DATABASE_PASSWORD}"
+    command: 
+      - "exit 0"
+    networks:
+      - app-network
+
+  app-mysql:
+    image: mysql:9.1
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "${MYSQL_PORT}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_DATABASE: "${DATABASE_SCHEMA}"
+      MYSQL_USER: "${DATABASE_USERNAME}"
+      MYSQL_PASSWORD: "${DATABASE_PASSWORD}"
+
+  init-app-postgres:
+    image: postgres:17
+    depends_on:
+      app-postgres:
+        condition: service_healthy
+    command: 
+      - "exit 0"
+    networks:
+      - app-network
 
   app-postgres:
     image: postgres:17

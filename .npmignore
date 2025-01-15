@@ -2,6 +2,9 @@ node_modules/
 db/
 !creator/
 
+.github/
+.nyc_output/
+
 .npmrc
 
 slim.report.json

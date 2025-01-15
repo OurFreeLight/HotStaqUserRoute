@@ -207,7 +207,7 @@ export class User implements IUser
 	/**
 	 * The minimum length of a display name.
 	 */
-	static minDisplayNameLength: number = 3;
+	static minDisplayNameLength: number = 0;
 	/**
 	 * The maximum length of a display name.
 	 */
@@ -314,60 +314,60 @@ export class User implements IUser
 		{
 			await db.query (
 				`create table if not exists users (
-						id             BINARY(16)     NOT NULL,
-						userType       VARCHAR(256)   DEFAULT 'user',
-						displayName    VARCHAR(256)   DEFAULT '',
-						firstName      VARCHAR(256)   DEFAULT '',
-						lastName       VARCHAR(256)   DEFAULT '',
-						email          VARCHAR(256)   DEFAULT '',
-						password       VARCHAR(256)   DEFAULT '',
-						passwordSalt   VARCHAR(256)   DEFAULT '',
-						verifyCode     VARCHAR(256)   DEFAULT '',
-						verified       TINYINT(1)     DEFAULT '0',
-						registeredDate DATETIME       DEFAULT NOW(),
-						deletionDate   DATETIME       DEFAULT NULL,
-						enabled        TINYINT(1)     DEFAULT '1',
-						PRIMARY KEY (id)
-					)`);
+					id                BINARY(16)     NOT NULL,
+					user_type         VARCHAR(256)   DEFAULT 'user',
+					display_name      VARCHAR(256)   DEFAULT '',
+					first_name        VARCHAR(256)   DEFAULT '',
+					last_name         VARCHAR(256)   DEFAULT '',
+					email             VARCHAR(256)   DEFAULT '',
+					password_hash     VARCHAR(256)   DEFAULT '',
+					password_salt     VARCHAR(256)   DEFAULT '',
+					verify_code       VARCHAR(256)   DEFAULT '',
+					verified          TINYINT(1)     DEFAULT '0',
+					registered_date   DATETIME       DEFAULT NOW(),
+					deletion_date     DATETIME       DEFAULT NULL,
+					enabled           TINYINT(1)     DEFAULT '1',
+					PRIMARY KEY (id)
+				)`);
 			await db.query (
 				`create table if not exists user_logins (
-						id             BINARY(16)     NOT NULL,
-						userId         BINARY(16)     DEFAULT '',
-						ip             VARCHAR(256)   DEFAULT '',
-						loginDate      DATETIME       DEFAULT NOW(),
-						logOutDate     DATETIME       DEFAULT NULL,
-						PRIMARY KEY (id)
-					)`);
+					id                BINARY(16)     NOT NULL,
+					user_id           BINARY(16)     DEFAULT '',
+					ip                VARCHAR(256)   DEFAULT '',
+					login_date        DATETIME       DEFAULT NOW(),
+					log_out_date      DATETIME       DEFAULT NULL,
+					PRIMARY KEY (id)
+				)`);
 		}
 
 		if (db.type === HotDBType.Postgres)
 		{
 			await db.query (
 				`create table if not exists users (
-						id             UUID           NOT NULL,
-						userType       VARCHAR(256)   DEFAULT 'user',
-						displayName    VARCHAR(256)   DEFAULT '',
-						firstName      VARCHAR(256)   DEFAULT '',
-						lastName       VARCHAR(256)   DEFAULT '',
-						email          VARCHAR(256)   DEFAULT '',
-						password       VARCHAR(256)   DEFAULT '',
-						passwordSalt   VARCHAR(256)   DEFAULT '',
-						verifyCode     VARCHAR(256)   DEFAULT '',
-						verified       SMALLINT(1)    DEFAULT '0',
-						registeredDate TIMESTAMP      DEFAULT NOW(),
-						deletionDate   TIMESTAMP      DEFAULT NULL,
-						enabled        SMALLINT(1)    DEFAULT '1',
-						PRIMARY KEY (id)
-					)`);
+					id                UUID           NOT NULL,
+					user_type         VARCHAR(256)   DEFAULT 'user',
+					display_name      VARCHAR(256)   DEFAULT '',
+					first_name        VARCHAR(256)   DEFAULT '',
+					last_name         VARCHAR(256)   DEFAULT '',
+					email             VARCHAR(256)   DEFAULT '',
+					password_hash     VARCHAR(256)   DEFAULT '',
+					password_salt     VARCHAR(256)   DEFAULT '',
+					verify_code       VARCHAR(256)   DEFAULT '',
+					verified          SMALLINT       DEFAULT '0',
+					registered_date   TIMESTAMP      DEFAULT NOW(),
+					deletion_date     TIMESTAMP      DEFAULT NULL,
+					enabled           SMALLINT       DEFAULT '1',
+					PRIMARY KEY (id)
+				)`);
 			await db.query (
 				`create table if not exists user_logins (
-						id             UUID           NOT NULL,
-						userId         UUID           DEFAULT NULL,
-						ip             VARCHAR(256)   DEFAULT '',
-						loginDate      TIMESTAMP      DEFAULT NOW(),
-						logOutDate     TIMESTAMP      DEFAULT NULL,
-						PRIMARY KEY (id)
-					)`);
+					id                UUID           NOT NULL,
+					user_id           UUID           DEFAULT NULL,
+					ip                VARCHAR(256)   DEFAULT '',
+					login_date        TIMESTAMP      DEFAULT NOW(),
+					log_out_date      TIMESTAMP      DEFAULT NULL,
+					PRIMARY KEY (id)
+				)`);
 		}
 	}
 
@@ -456,6 +456,12 @@ export class User implements IUser
 	 */
 	public static validateDisplayName (displayName: string): boolean
 	{
+		if (User.minDisplayNameLength === 0)
+		{
+			if (displayName.length === 0)
+				return (true);
+		}
+
 		if (displayName.length < User.minDisplayNameLength)
 			return (false);
 
@@ -490,9 +496,15 @@ export class User implements IUser
 
 	/**
 	 * Convert a binary UUID to a string UUID.
+	 * 
+	 * @param buffer The UUID buffer to convert into a string. If the buffer is a string, this 
+	 * will assume that the string is already a UUID and return it as is.
 	 */
-	static fromBinaryToUUID (buffer: Buffer): string
+	static fromBinaryToUUID (buffer: Buffer | string): string
 	{
+		if (typeof (buffer) === "string")
+			return (buffer);
+
 		const hex: string = buffer.toString ('hex');
 		return `${hex.substr (0, 8)}-${hex.substr (8, 4)}-${hex.substr (12, 4)}-${hex.substr (16, 4)}-${hex.substr (20)}`;
 	}
@@ -509,7 +521,7 @@ export class User implements IUser
 			query = `
 			SET @generated_id = UNHEX(REPLACE(UUID(), '-', ''));
 
-			INSERT INTO users (id, userType, displayName, firstName, lastName, email, password, passwordSalt, verifyCode, verified, enabled) 
+			INSERT INTO users (id, user_type, display_name, first_name, last_name, email, password_hash, password_salt, verify_code, verified, enabled) 
 			VALUES (@generated_id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 			SELECT @generated_id AS id;`;
@@ -518,15 +530,15 @@ export class User implements IUser
 		if (dbtype === HotDBType.MariaDB)
 		{
 			query = `
-			INSERT INTO users (id, userType, displayName, firstName, lastName, email, password, passwordSalt, verifyCode, verified, enabled) 
+			INSERT INTO users (id, user_type, display_name, first_name, last_name, email, password_hash, password_salt, verify_code, verified, enabled) 
 			VALUES (UNHEX(REPLACE(UUID(),'-','')), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id;`;
 		}
 
 		if (dbtype === HotDBType.Postgres)
 		{
 			query = `
-			INSERT INTO users (id, userType, displayName, firstName, lastName, email, password, passwordSalt, verifyCode, verified, enabled) 
-			VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning id;`;
+			INSERT INTO users (id, user_type, display_name, first_name, last_name, email, password_hash, password_salt, verify_code, verified, enabled) 
+			VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning id;`;
 		}
 
 		return (query);
@@ -611,7 +623,9 @@ export class User implements IUser
 		if (this.enabled === false)
 			enabled = 0;
 
-		let result: any = await db.queryOne (User.getRegisterQuery (db.type), 
+		let query = User.getRegisterQuery (db.type);
+
+		let result: any = await db.queryOne (query, 
 			[this.userType, this.displayName, this.firstName, this.lastName, this.email, hash, salt, this.verifyCode, verified, enabled]);
 
 		if (result.error != null)
@@ -641,16 +655,16 @@ export class User implements IUser
 
 		if ((dbtype === HotDBType.MySQL) || (dbtype === HotDBType.MariaDB))
 		{
-			query = `SELECT HEX(id) as id, HEX(userId) as userId, ip, loginDate, logOutDate 
-			FROM user_logins WHERE userId = UNHEX(REPLACE(?, '-', '')) ORDER BY 
-			loginDate DESC LIMIT ${limit} OFFSET ${offset};`;
+			query = `SELECT HEX(id) as id, HEX(user_id) as user_id, ip, login_date, log_out_date 
+			FROM user_logins WHERE user_id = UNHEX(REPLACE(?, '-', '')) ORDER BY 
+			login_date DESC LIMIT ${limit} OFFSET ${offset};`;
 		}
 
 		if (dbtype === HotDBType.Postgres)
 		{
-			query = `SELECT id, userId, ip, loginDate, logOutDate 
-			FROM user_logins WHERE userId = decode(replace($1, '-', ''), 'hex')::uuid ORDER BY 
-			loginDate DESC LIMIT ${limit} OFFSET ${offset};`;
+			query = `SELECT id, user_id, ip, login_date, log_out_date 
+			FROM user_logins WHERE user_id = $1::uuid ORDER BY 
+			login_date DESC LIMIT ${limit} OFFSET ${offset};`;
 		}
 
 		return (query);
@@ -691,9 +705,9 @@ export class User implements IUser
 		if (user.userType != null)
 		{
 			if (counter === 0)
-				keyValues += `userType = ?,`;
+				keyValues += `user_type = ?,`;
 			else
-				keyValues += `userType = $${counter},`;
+				keyValues += `user_type = $${counter},`;
 
 			values.push (user.userType);
 			counter++;
@@ -702,9 +716,9 @@ export class User implements IUser
 		if (user.displayName != null)
 		{
 			if (counter === 0)
-				keyValues += `displayName = ?,`;
+				keyValues += `display_name = ?,`;
 			else
-				keyValues += `displayName = $${counter},`;
+				keyValues += `display_name = $${counter},`;
 
 			values.push (user.displayName);
 			counter++;
@@ -713,9 +727,9 @@ export class User implements IUser
 		if (user.firstName != null)
 		{
 			if (counter === 0)
-				keyValues += `firstName = ?,`;
+				keyValues += `first_name = ?,`;
 			else
-				keyValues += `firstName = $${counter},`;
+				keyValues += `first_name = $${counter},`;
 
 			values.push (user.firstName);
 		}
@@ -723,9 +737,9 @@ export class User implements IUser
 		if (user.lastName != null)
 		{
 			if (counter === 0)
-				keyValues += `lastName = ?,`;
+				keyValues += `last_name = ?,`;
 			else
-				keyValues += `lastName = $${counter},`;
+				keyValues += `last_name = $${counter},`;
 
 			values.push (user.lastName);
 			counter++;
@@ -890,10 +904,10 @@ export class User implements IUser
 				await User.onLoginRegenPasswordUpdate (foundUser, hash, salt);
 			else
 			{
-				let query = `update users set password = ?, passwordSalt = ? where email = ?`;
+				let query = `update users set password_hash = ?, password_salt = ? where email = ?`;
 
 				if (db.type === HotDBType.Postgres)
-					query = `update users set password = $1, passwordSalt = $2 where email = $3`;
+					query = `update users set password_hash = $1, password_salt = $2 where email = $3`;
 
 				let result = await db.query (query, [hash, salt, email]);
 
@@ -927,7 +941,7 @@ export class User implements IUser
 				query =
 			`
 			SET @generated_id = UNHEX(REPLACE(UUID(), '-', ''));
-			INSERT INTO user_logins (id, userId, ip) VALUES (@generated_id, UNHEX(REPLACE(?,'-','')), ?);
+			INSERT INTO user_logins (id, user_id, ip) VALUES (@generated_id, UNHEX(REPLACE(?,'-','')), ?);
 			SELECT @generated_id AS id;
 			`;
 			}
@@ -935,11 +949,11 @@ export class User implements IUser
 			if (db.type === HotDBType.MariaDB)
 			{
 				query =
-			`INSERT INTO user_logins (id, userId, ip) VALUES (UNHEX(REPLACE(UUID(),'-','')), UNHEX(REPLACE(?,'-','')), ?) returning id;`;
+			`INSERT INTO user_logins (id, user_id, ip) VALUES (UNHEX(REPLACE(UUID(),'-','')), UNHEX(REPLACE(?,'-','')), ?) returning id;`;
 			}
 
 			if (db.type === HotDBType.Postgres)
-				query = `INSERT INTO user_logins (id, userId, ip) VALUES (uuid_generate_v4(), $1, $2) returning id;`;
+				query = `INSERT INTO user_logins (id, user_id, ip) VALUES (gen_random_uuid(), $1, $2) returning id;`;
 
 			let result: any = await db.queryOne (query, [foundUser.id, ip]);
 
@@ -975,10 +989,10 @@ export class User implements IUser
 			await User.onLogoutUpdateUserLogin (user, userLoginId);
 		else
 		{
-			let query = `update user_logins set logOutDate = NOW() where id = UNHEX(REPLACE(?,'-',''))`;
+			let query = `update user_logins set log_out_date = NOW() where id = UNHEX(REPLACE(?,'-',''))`;
 
 			if (db.type === HotDBType.Postgres)
-				query = `update user_logins set logOutDate = NOW() where id = $1::uuid`;
+				query = `update user_logins set log_out_date = NOW() where id = $1::uuid`;
 
 			let result = await db.query (query, [userLoginId]);
 
@@ -1050,10 +1064,10 @@ export class User implements IUser
 			await User.onChangePasswordUpdate (user, hash, salt);
 		else
 		{
-			let query = `update users set password = ?, passwordSalt = ?, verifyCode = null where id = UNHEX(REPLACE(?,'-',''))`;
+			let query = `update users set password_hash = ?, password_salt = ?, verify_code = null where id = UNHEX(REPLACE(?,'-',''))`;
 
 			if (db.type === HotDBType.Postgres)
-				query = `update users set password = $1, passwordSalt = $2, verifyCode = null where id = $3::uuid`;
+				query = `update users set password_hash = $1, password_salt = $2, verify_code = null where id = $3::uuid`;
 
 			// Update the user's password in the database.
 			let result = await db.query (query, [hash, salt, user.id]);
@@ -1102,10 +1116,10 @@ export class User implements IUser
 			await User.onForgotPasswordUpdate (user);
 		else
 		{
-			let query = `update users set verifyCode = ? where id = UNHEX(REPLACE(?,'-',''))`;
+			let query = `update users set verify_code = ? where id = UNHEX(REPLACE(?,'-',''))`;
 
 			if (db.type === HotDBType.Postgres)
-				query = `update users set verifyCode = $1 where id = $2::uuid`;
+				query = `update users set verify_code = $1 where id = $2::uuid`;
 
 			let result = await db.query (query, [user.verifyCode, user.id]);
 
@@ -1146,10 +1160,10 @@ export class User implements IUser
 			await User.onResetForgottenPasswordUpdate (foundUser, hash, salt);
 		else
 		{
-			let query = `update users set password = ?, passwordSalt = ?, verifyCode = null where id = UNHEX(REPLACE(?,'-',''))`;
+			let query = `update users set password_hash = ?, password_salt = ?, verify_code = null where id = UNHEX(REPLACE(?,'-',''))`;
 
 			if (db.type === HotDBType.Postgres)
-				query = `update users set password = $1, passwordSalt = $2, verifyCode = null where id = $3::uuid`;
+				query = `update users set password_hash = $1, password_salt = $2, verify_code = null where id = $3::uuid`;
 
 			// Update the user's password in the database.
 			let result = await db.query (query, [hash, salt, foundUser.id]);
@@ -1196,16 +1210,16 @@ export class User implements IUser
 
 		let user: User = new User ({
 				id: userId,
-				userType: result["userType"],
-				displayName: result["displayName"],
-				firstName: result["firstName"],
-				lastName: result["lastName"],
+				userType: result["user_type"],
+				displayName: result["display_name"],
+				firstName: result["first_name"],
+				lastName: result["last_name"],
 				email: result["email"],
-				password: result["password"],
-				passwordSalt: result["passwordSalt"],
-				verifyCode: result["verifyCode"],
-				registeredDate: new Date (result["registeredDate"]),
-				loginDate: new Date (result["loginDate"]),
+				password: result["password_hash"],
+				passwordSalt: result["password_salt"],
+				verifyCode: result["verify_code"],
+				registeredDate: new Date (result["registered_date"]),
+				loginDate: new Date (result["login_date"]),
 				enabled: true, 
 				verified: true
 			});
