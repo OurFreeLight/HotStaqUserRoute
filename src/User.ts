@@ -797,7 +797,7 @@ export class User implements IUser
 			let idpart = `UNHEX(REPLACE(?, '-', ''))`;
 
 			if (db.type === HotDBType.Postgres)
-				idpart = `$1::uuid`;
+				idpart = `$${counter}::uuid`;
 
 			let result: any = await db.queryOne (
 				`UPDATE users SET ${keyValues} WHERE id = ${idpart};`,
