@@ -1224,10 +1224,10 @@ export class User implements IUser
 				verified: true
 			});
 
-		if (result["enabled"] === 0)
+		if ((result["enabled"] === 0) || (result["enabled"] === false))
 			user.enabled = false;
 
-		if (result["verified"] === 0)
+		if ((result["verified"] === 0) || (result["verified"] === false))
 			user.verified = false;
 
 		// Only get the password/verify code if explicitly told to do so.
