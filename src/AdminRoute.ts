@@ -330,7 +330,6 @@ export class AdminRoute extends UserRoute
 	 */
 	protected async impersonate (req: ServerRequest): Promise<any>
 	{
-		debugger;
 		await this.checkAuth (req);
 
 		const user: User = HotStaq.getParam ("user", req.jsonObj);
