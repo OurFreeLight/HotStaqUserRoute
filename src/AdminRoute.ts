@@ -1,6 +1,7 @@
 import * as ppath from "path";
 
-import { HotRoute, ServerRequest, HotTestDriver, HotStaq, HotServerType, HotDBMySQL, ConnectionStatus, HotAPI, HotDBType } from "hotstaq";
+import { HotRoute, ServerRequest, HotTestDriver, HotStaq, HotServerType, 
+	HotDBMySQL, ConnectionStatus, HotAPI, HotDBType, HttpError } from "hotstaq";
 import { IJWTToken, IUser, User } from "./User";
 import { UserRoute } from "./UserRoute";
 import { HotRouteMethodParameter, PassType } from "hotstaq/build/src/HotRouteMethod";
@@ -126,11 +127,11 @@ export class AdminRoute extends UserRoute
 								"description": "Searches for a user by their first name, last name, or email."
 							},
 							"offset": {
-								"type": "int",
+								"type": "integer",
 								"required": false
 							},
 							"limit": {
-								"type": "int",
+								"type": "integer",
 								"required": false
 							}
 						},
@@ -146,6 +147,31 @@ export class AdminRoute extends UserRoute
 							}
 						]
 					});
+					this.addMethod ({
+							"name": "impersonate",
+							"onServerExecute": this.impersonate,
+							"description": `Login as another user. Only admins can use this.`,
+							"parameters": {
+								"user": {
+									"type": "object",
+									"required": true,
+									"parameters": {
+										"email": {
+												"type": "string",
+												"required": true,
+												"description": "The user's email."
+											}
+										}
+									}
+							},
+							"returns": "The JWT token of the logged in user.",
+							"testCases": [
+								"impersonateTest",
+								async (driver: HotTestDriver): Promise<any> =>
+								{
+								}
+							]
+						});
 			};
 		this.onPreRegister = async () =>
 			{
@@ -175,7 +201,7 @@ export class AdminRoute extends UserRoute
 			const authUser: IUser = decoded.user;
 
 			if (authUser.userType !== this.methodsRequireAuthType)
-				throw new Error (`Only user of type ${this.methodsRequireAuthType} is allowed to use this method.`);
+				throw new HttpError (`Only user of type ${this.methodsRequireAuthType} is allowed to use this method.`, 401);
 		}
 	}
 
@@ -285,7 +311,7 @@ export class AdminRoute extends UserRoute
 		let results = await this.db.query (query, args);
 
 		if (results.error != null)
-			throw new Error (`Unable to list users: ${results.error}`);
+			throw new HttpError (`Unable to list users: ${results.error}`);
 
 		let users: IUser[] = [];
 
@@ -297,5 +323,25 @@ export class AdminRoute extends UserRoute
 		}
 
 		return (users);
+	}
+
+	/**
+	 * Login as another user. Only admins can use this.
+	 */
+	protected async impersonate (req: ServerRequest): Promise<any>
+	{
+		debugger;
+		await this.checkAuth (req);
+
+		const user: User = HotStaq.getParam ("user", req.jsonObj);
+		const email: string = HotStaq.getParam ("email", user);
+		const ip: string = (<string>req.req.headers["x-forwarded-for"]) || req.req.socket.remoteAddress;
+
+		let userInfo: User = await User.login (this.db, ip, email, "", false, true);
+
+		req.passObject.passType = PassType.Ignore;
+		req.passObject.jsonObj = { ip: ip, verifyCode: userInfo.verifyCode, user: userInfo };
+
+		return (userInfo);
 	}
 }

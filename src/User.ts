@@ -1,4 +1,4 @@
-import { MySQLResults, HotDBType, HotDB } from "hotstaq";
+import { MySQLResults, HotDBType, HotDB, HttpError } from "hotstaq";
 import * as crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -554,31 +554,31 @@ export class User implements IUser
 		if (User.emailValidateRegEx != null)
 		{
 			if (User.validateEmail (this.email) === false)
-				throw new Error (`Invalid email.`);
+				throw new HttpError (`Invalid email.`);
 		}
 
 		if (User.displayNameValidateRegEx != null)
 		{
 			if (User.validateDisplayName (this.displayName) === false)
-				throw new Error (`Invalid display name.`);
+				throw new HttpError (`Invalid display name.`);
 		}
 
 		if (User.minPasswordLength != null)
 		{
 			if (this.password.length < User.minPasswordLength)
-				throw new Error (`Password is too short. Must be at least ${User.minPasswordLength} characters.`);
+				throw new HttpError (`Password is too short. Must be at least ${User.minPasswordLength} characters.`);
 		}
 
 		if (User.maxPasswordLength != null)
 		{
 			if (this.password.length >= User.maxPasswordLength)
-				throw new Error (`Password is too long. Must be less than ${User.maxPasswordLength} characters.`);
+				throw new HttpError (`Password is too long. Must be less than ${User.maxPasswordLength} characters.`);
 		}
 
 		let tempUser: User | null = await User.getUser (db, this.email);
 
 		if (tempUser != null)
-			throw new Error (`Email has already been used.`);
+			throw new HttpError (`Email has already been used.`);
 
 		const salt: string = await User.generateSalt ();
 		const hash: string = await User.generateHash (this.password, salt);
@@ -840,22 +840,27 @@ export class User implements IUser
 	 * @param getPassword If set to true, this will return the user's password, salt, and verifyCode.
 	 * ONLY USE THIS WHEN NECESSARY. I HAVE NO IDEA WHY THIS WOULD EVER BE NECESSARY, BUT I'M PUTTING 
 	 * IT HERE JUST IN CASE.
+	 * @param skipPasswordVerficiation If set to true, this will skip the password verification. ONLY 
+	 * USE THIS FOR IMPERSONATION. BE VERY CAREFUL WITH THIS.
 	 */
 	static async login (db: HotDB, ip: string | User, email?: string, 
-		password?: string, getPassword: boolean = false): Promise<User>
+		password?: string, getPassword: boolean = false, skipPasswordVerficiation: boolean = false): Promise<User>
 	{
 		let foundUser: User = null;
 
-		if (User.minPasswordLength != null)
+		if (skipPasswordVerficiation === false)
 		{
-			if (password.length < User.minPasswordLength)
-				throw new Error (`Password is too short. Must be at least ${User.minPasswordLength} characters.`);
-		}
+			if (User.minPasswordLength != null)
+			{
+				if (password.length < User.minPasswordLength)
+					throw new HttpError (`Password is too short. Must be at least ${User.minPasswordLength} characters.`);
+			}
 
-		if (User.maxPasswordLength != null)
-		{
-			if (password.length >= User.maxPasswordLength)
-				throw new Error (`Password is too long. Must be less than ${User.maxPasswordLength} characters.`);
+			if (User.maxPasswordLength != null)
+			{
+				if (password.length >= User.maxPasswordLength)
+					throw new HttpError (`Password is too long. Must be less than ${User.maxPasswordLength} characters.`);
+			}
 		}
 
 		if (typeof (ip) === "string")
@@ -871,21 +876,24 @@ export class User implements IUser
 		}
 
 		if (foundUser == null)
-			throw new Error (`Wrong email or password.`);
+			throw new HttpError (`Wrong email or password.`);
 
 		if (foundUser.enabled === false)
-			throw new Error (`This account has been disabled.`);
+			throw new HttpError (`This account has been disabled.`);
 
 		if (foundUser.verified === false)
-			throw new Error (`This account has not been verified yet.`);
+			throw new HttpError (`This account has not been verified yet.`);
 
 		if (typeof (ip) === "string")
 			foundUser.ip = ip;
 
-		const cmp: boolean = await bcrypt.compare (password, foundUser.password);
+		if (skipPasswordVerficiation === false)
+		{
+			const cmp: boolean = await bcrypt.compare (password, foundUser.password);
 
-		if (cmp === false)
-			throw new Error (`Wrong email or password.`);
+			if (cmp === false)
+				throw new HttpError (`Wrong email or password.`);
+		}
 
 		let regenPassword: boolean = true;
 
@@ -1011,10 +1019,10 @@ export class User implements IUser
 		let foundUser: User = await User.getUser (db, email, true);
 
 		if (foundUser == null)
-			throw new Error (`User not found.`);
+			throw new HttpError (`User not found.`);
 
 		if (foundUser.verifyCode !== verificationCode)
-			throw new Error (`Unable to verify user. Incorrect verification code.`);
+			throw new HttpError (`Unable to verify user. Incorrect verification code.`);
 
 		if (User.onVerifyUserUpdate != null)
 			await User.onVerifyUserUpdate (foundUser);
@@ -1040,21 +1048,21 @@ export class User implements IUser
 	static async changePassword (db: HotDB, user: User, newPassword: string): Promise<void>
 	{
 		if (newPassword === "")
-			throw new Error (`New password cannot be empty!`);
+			throw new HttpError (`New password cannot be empty!`);
 
 		if (user.id === "")
-			throw new Error (`No user id supplied!`);
+			throw new HttpError (`No user id supplied!`);
 
 		if (User.minPasswordLength != null)
 		{
 			if (newPassword.length < User.minPasswordLength)
-				throw new Error (`Password is too short. Must be at least ${User.minPasswordLength} characters.`);
+				throw new HttpError (`Password is too short. Must be at least ${User.minPasswordLength} characters.`);
 		}
 
 		if (User.maxPasswordLength != null)
 		{
 			if (newPassword.length >= User.maxPasswordLength)
-				throw new Error (`Password is too long. Must be less than ${User.maxPasswordLength} characters.`);
+				throw new HttpError (`Password is too long. Must be less than ${User.maxPasswordLength} characters.`);
 		}
 
 		const salt: string = await User.generateSalt ();
@@ -1105,7 +1113,7 @@ export class User implements IUser
 		let user: User = await User.getUser (db, email, true);
 
 		if (user == null)
-			throw new Error (`User not found.`);
+			throw new HttpError (`User not found.`);
 
 		if (verifyCode !== "")
 			user.verifyCode = verifyCode;
@@ -1148,10 +1156,10 @@ export class User implements IUser
 		let foundUser: User = await User.getUser (db, email, true);
 
 		if (foundUser == null)
-			throw new Error (`User not found.`);
+			throw new HttpError (`User not found.`);
 
 		if (foundUser.verifyCode !== verificationCode)
-			throw new Error (`Unable to reset password. Incorrect verification code.`);
+			throw new HttpError (`Unable to reset password. Incorrect verification code.`);
 
 		const salt: string = await User.generateSalt ();
 		const hash: string = await User.generateHash (newPassword, salt);
@@ -1356,7 +1364,7 @@ export class User implements IUser
 	static async generateJWTToken (jsonObj: any, expiresIn: string = "30 days"): Promise<string>
 	{
 		if (User.jwtSecretKey === "")
-			throw new Error (`A JWT secret key is required to run!`);
+			throw new HttpError (`A JWT secret key is required to run!`, 500);
 
 		return (new Promise<string> ((resolve, reject) =>
 			{
@@ -1378,12 +1386,12 @@ export class User implements IUser
 	static async decodeJWTToken (jwtToken: string): Promise<IJWTToken>
 	{
 		if (User.jwtSecretKey === "")
-			throw new Error (`A JWT secret key is required to run!`);
+			throw new HttpError (`A JWT secret key is required to run!`, 500);
 
 		if (User.invalidJWTTokens[jwtToken] != null)
 		{
 			if (User.invalidJWTTokens[jwtToken] === true)
-				throw new Error (`JWT token has been invalidated!`);
+				throw new HttpError (`JWT token has been invalidated!`, 401);
 		}
 
 		return (new Promise<IJWTToken> ((resolve, reject) =>
@@ -1391,7 +1399,7 @@ export class User implements IUser
 				jwt.verify (jwtToken, User.jwtSecretKey, (err: Error, decoded: IJWTToken) =>
 					{
 						if (err != null)
-							throw new Error (`Unable to verify JWT token!`);
+							throw new HttpError (`Unable to verify JWT token!`, 401);
 
 						resolve (decoded);
 					});
