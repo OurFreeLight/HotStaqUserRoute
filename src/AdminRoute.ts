@@ -21,6 +21,10 @@ export class AdminRoute extends UserRoute
 	 */
 	methodsRequireAuthType: string;
 	/**
+	 * The maximum limit for rows that can be returned.
+	 */
+	maxLimit: number = 1000;
+	/**
 	 * Executes before the route is registered with the web server.
 	 */
 	onAdminPreRegisterRoute: () => Promise<void>;
@@ -34,6 +38,7 @@ export class AdminRoute extends UserRoute
 		super (api, routeName);
 
 		this.methodsRequireAuthType = "admin";
+		this.maxLimit = 1000;
 
 		this.onAdminPreRegisterRoute = async () =>
 			{
@@ -119,7 +124,7 @@ export class AdminRoute extends UserRoute
 				this.addMethod ({
 						"name": "listUsers",
 						"onServerExecute": this.listUsers,
-						"description": `Lists all users.`,
+						"description": `Lists all users. This is meant to be performed by trusted admins or moderators.`,
 						"parameters": {
 							"search": {
 								"type": "string",
@@ -132,10 +137,30 @@ export class AdminRoute extends UserRoute
 							},
 							"limit": {
 								"type": "integer",
-								"required": false
+								"required": false,
+								"description": `The number of users to return. The maximum is ${this.maxLimit}`
+							},
+							"orderBy": {
+								"type": "string",
+								"required": false,
+								"description": "The column to order by."
 							}
 						},
-						"returns": "Returns the list of users.",
+						"returns": {
+								"type": "object",
+								"description": "Returns the list of users.",
+								"parameters": {
+									"length": {
+										"type": "integer",
+										"description": "The number of users returned."
+									},
+									"data": {
+										"type": "array",
+										"description": "The list of users.",
+										"items": userObjectDesc
+									}
+								}
+							},
 						"testCases": [
 							"listUsersTest",
 							async (driver: HotTestDriver): Promise<any> =>
@@ -279,33 +304,54 @@ export class AdminRoute extends UserRoute
 	}
 
 	/**
-	 * List users.
+	 * List users. This is meant to be performed by trusted admins or moderators.
 	 * 
 	 * This performs a select on the users table.
 	 */
-	protected async listUsers (req: ServerRequest): Promise<any>
+	protected async listUsers (req: ServerRequest): Promise<{ length: number; data: any[]; }>
 	{
 		await this.checkAuth (req);
 
 		const search: string = HotStaq.getParamDefault ("search", req.jsonObj, null);
 		const offset: number = HotStaq.getParamDefault ("offset", req.jsonObj, 0);
 		const limit: number = HotStaq.getParamDefault ("limit", req.jsonObj, 20);
+		let orderBy: string = HotStaq.getParamDefault ("orderBy", req.jsonObj, "display_name");
+		
+		if (limit > this.maxLimit)
+			throw new Error (`Limit cannot exceed ${this.maxLimit}`);
 
-		let query: string = `SELECT * FROM users LIMIT ?, ?;`;
+		orderBy = `u.${orderBy}`;
+
+		let query: string = `SELECT u.*, COUNT(*) OVER() AS total_count FROM users u ORDER BY ? LIMIT ?, ?;`;
 
 		if (this.db.type === HotDBType.Postgres)
-			query = `SELECT * FROM users OFFSET $1 LIMIT $2;`;
+			query = `SELECT u.*, COUNT(*) OVER() AS total_count FROM users u ORDER BY $1 OFFSET $2 LIMIT $3;`;
 
-		let args: any[] = [offset, limit];
+		let args: any[] = [orderBy, offset, limit];
 
 		if (search != null)
 		{
-			query = `SELECT * FROM users WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? LIMIT ?, ?;`;
+			query = `SELECT 
+				u.*,
+				COUNT(*) OVER() AS total_count
+				FROM users u
+				WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ?
+				ORDER BY ? 
+				LIMIT ?, ?;`;
 
 			if (this.db.type === HotDBType.Postgres)
-				query = `SELECT * FROM users WHERE first_name LIKE $1 OR last_name LIKE $2 OR email LIKE $3 OFFSET $4 LIMIT $5;`;
+			{
+				//query = `SELECT * FROM users WHERE first_name LIKE $1 OR last_name LIKE $2 OR email LIKE $3 OFFSET $4 LIMIT $5;`;
+				query = `SELECT 
+					u.*, 
+					COUNT(*) OVER() AS total_count
+					FROM users u
+					WHERE first_name LIKE $1 OR last_name LIKE $2 OR email LIKE $3
+					ORDER BY $4 
+					OFFSET $5 LIMIT $6;`;
+			}
 
-			args = [`%${search}%`, `%${search}%`, `%${search}%`, offset, limit];
+			args = [`%${search}%`, `%${search}%`, `%${search}%`, orderBy, offset, limit];
 		}
 
 		let results = await this.db.query (query, args);
@@ -314,6 +360,10 @@ export class AdminRoute extends UserRoute
 			throw new HttpError (`Unable to list users: ${results.error}`);
 
 		let users: IUser[] = [];
+		let length: number = 0;
+
+		if (results.results.length > 0)
+			length = results.results[0].total_count;
 
 		for (let i = 0; i < results.results.length; i++)
 		{
@@ -322,7 +372,7 @@ export class AdminRoute extends UserRoute
 			users.push (User.getUserFromResult (row));
 		}
 
-		return (users);
+		return ({ length: length, data: users });
 	}
 
 	/**
