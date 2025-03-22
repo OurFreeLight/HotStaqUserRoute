@@ -335,7 +335,7 @@ export class AdminRoute extends UserRoute
 				u.*,
 				COUNT(*) OVER() AS total_count
 				FROM users u
-				WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ?
+				WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR display_name LIKE $3
 				ORDER BY ? 
 				LIMIT ?, ?;`;
 
@@ -346,7 +346,7 @@ export class AdminRoute extends UserRoute
 					u.*, 
 					COUNT(*) OVER() AS total_count
 					FROM users u
-					WHERE first_name ILIKE $1 OR last_name ILIKE $2 OR email ILIKE $3
+					WHERE first_name ILIKE $1 OR last_name ILIKE $2 OR email ILIKE $3 OR display_name ILIKE $3
 					ORDER BY $4 
 					OFFSET $5 LIMIT $6;`;
 			}
