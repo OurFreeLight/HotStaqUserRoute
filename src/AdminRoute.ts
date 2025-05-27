@@ -1,10 +1,15 @@
 import * as ppath from "path";
 
 import { HotRoute, ServerRequest, HotTestDriver, HotStaq, HotServerType, 
-	HotDBMySQL, ConnectionStatus, HotAPI, HotDBType, HttpError } from "hotstaq";
+	HotDBMySQL, ConnectionStatus, HotAPI, HotDBType, HttpError, 
+	HotRouteMethodParameter, PassType, 
+	HotRouteMethodParameterMap,
+	HotValidationType,
+	HotValidation} from "hotstaq";
 import { IJWTToken, IUser, User } from "./User";
 import { UserRoute } from "./UserRoute";
-import { HotRouteMethodParameter, PassType } from "hotstaq/build/src/HotRouteMethod";
+
+import IUserObj from "./object-defs/IUser.json";
 
 /**
  * Admin route.
@@ -32,6 +37,11 @@ export class AdminRoute extends UserRoute
 	 * The database connection.
 	 */
 	db: HotDBMySQL;
+	/**
+	 * If set to true, this will not validate the inputs. This should be set if 
+	 * validations for every endpoint are already occurring outside of this module.
+	 */
+	alreadyValidatedInputs: boolean;
 
 	constructor (api: HotAPI, routeName: string = "admins")
 	{
@@ -39,14 +49,14 @@ export class AdminRoute extends UserRoute
 
 		this.methodsRequireAuthType = "admin";
 		this.maxLimit = 1000;
+		this.alreadyValidatedInputs = false;
 
 		this.onAdminPreRegisterRoute = async () =>
 			{
 				let userObjectDesc: HotRouteMethodParameter = {
 						"type": "object",
 						"description": "The user object.",
-						// @ts-ignore
-						"parameters": await HotStaq.convertInterfaceToRouteParameters (ppath.normalize (`${__dirname}/../../src/User.ts`), "IUser")
+						"parameters": IUserObj as HotRouteMethodParameterMap
 					};
 		
 				this.addMethod ({
@@ -206,6 +216,30 @@ export class AdminRoute extends UserRoute
 	}
 
 	/**
+	 * A wrapper function for getParam
+	 */
+	protected getParam (validate: HotValidationType | HotValidation, name: string, objWithParam: any, 
+		request: ServerRequest, required?: boolean, throwException?: boolean, strict?: boolean): Promise<any>
+	{
+		if (this.alreadyValidatedInputs === true)
+			return (objWithParam[name]);
+
+		return (HotStaq.getParam (validate, name, objWithParam, request, required, throwException, strict));
+	}
+
+	/**
+	 * A wrapper function for getParamDefault
+	 */
+	protected getParamDefault (validate: HotValidationType | HotValidation, name: string, objWithParam: any, 
+		defaultValue: any, request: ServerRequest, strict?: boolean): Promise<any>
+	{
+		if (this.alreadyValidatedInputs === true)
+			return (objWithParam[name]);
+
+		return (HotStaq.getParamDefault (validate, name, objWithParam, defaultValue, request, strict));
+	}
+
+	/**
 	 * The admin to register. By default this prevents admins from being able 
 	 * to register. To enable this, override this method, and call super.register.
 	 */
@@ -221,7 +255,7 @@ export class AdminRoute extends UserRoute
 	{
 		if (this.methodsRequireAuthType !== "")
 		{
-			const jwtToken: string = HotStaq.getParam ("jwtToken", req.jsonObj);
+			const jwtToken: string = HotStaq.getParamUnsafe ("jwtToken", req.jsonObj);
 			const decoded: IJWTToken = await User.decodeJWTToken (jwtToken);
 			const authUser: IUser = decoded.user;
 
@@ -250,7 +284,7 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const userObj: IUser = HotStaq.getParam ("user", req.jsonObj);
+		const userObj: IUser = await this.getParam ((<HotValidationType>"IUser"), "user", req.jsonObj, req);
 		const user: User = new User (userObj);
 
 		await User.editUser (this.db, user);
@@ -265,7 +299,7 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const userObj: IUser = HotStaq.getParam ("user", req.jsonObj);
+		const userObj: IUser = await this.getParam ((<HotValidationType>"IUser"), "user", req.jsonObj, req);
 		const user: User = new User (userObj);
 
 		await User.deleteUser (this.db, user);
@@ -280,9 +314,9 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const userObj: IUser = HotStaq.getParam ("user", req.jsonObj);
+		const userObj: IUser = await this.getParam ((<HotValidationType>"IUser"), "user", req.jsonObj, req);
 		const user: User = new User (userObj);
-		const newPassword: string = HotStaq.getParam ("newPassword", req.jsonObj);
+		const newPassword: string = await this.getParam ((<HotValidationType>"IUser"), "newPassword", req.jsonObj, req);
 
 		await User.changePassword (this.db, user, newPassword);
 
@@ -296,7 +330,7 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const id: string = HotStaq.getParam ("id", req.jsonObj);
+		const id: string = await this.getParam ((<HotValidationType>"IUser"), "id", req.jsonObj, req);
 
 		let user = await User.getUserById (this.db, id, false);
 
@@ -312,10 +346,10 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const search: string = HotStaq.getParamDefault ("search", req.jsonObj, null);
-		const offset: number = HotStaq.getParamDefault ("offset", req.jsonObj, 0);
-		const limit: number = HotStaq.getParamDefault ("limit", req.jsonObj, 20);
-		let orderBy: string = HotStaq.getParamDefault ("orderBy", req.jsonObj, "display_name");
+		const search: string = await this.getParamDefault ((<HotValidationType>"IUser"), "search", req.jsonObj, null, req);
+		const offset: number = await this.getParamDefault ((<HotValidationType>"IUser"), "offset", req.jsonObj, 0, req);
+		const limit: number = await this.getParamDefault ((<HotValidationType>"IUser"), "limit", req.jsonObj, 20, req);
+		let orderBy: string = await this.getParamDefault ((<HotValidationType>"IUser"), "orderBy", req.jsonObj, "display_name", req);
 		
 		if (limit > this.maxLimit)
 			throw new Error (`Limit cannot exceed ${this.maxLimit}`);
@@ -382,8 +416,8 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const user: User = HotStaq.getParam ("user", req.jsonObj);
-		const email: string = HotStaq.getParam ("email", user);
+		const user: User = await this.getParam ((<HotValidationType>"IUser"), "user", req.jsonObj, req);
+		const email: string = await this.getParam ((<HotValidationType>"IUser"), "email", user, req);
 		const ip: string = (<string>req.req.headers["x-forwarded-for"]) || req.req.socket.remoteAddress;
 
 		let userInfo: User = await User.login (this.db, ip, email, "", false, true);

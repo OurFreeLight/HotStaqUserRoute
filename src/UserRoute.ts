@@ -1,11 +1,12 @@
-import { HotRoute, HotDBMySQL, HotServerType, 
-	ConnectionStatus, HotStaq, 
-	Hot, HotTestDriver, HotAPI, ServerRequest, DeveloperMode } from "hotstaq";
+import { HotRoute, HotDBMySQL, HotServerType, ConnectionStatus, HotStaq, 
+	Hot, HotTestDriver, HotAPI, ServerRequest, DeveloperMode, HotRouteMethodParameter, PassType, 
+	HotRouteMethodParameterMap,
+	HotValidationType,
+	HotValidation} from "hotstaq";
 
-import { EmailConfig, IJWTToken, IUser, User } from "./User";
+import { EmailConfig, IJWTToken, User } from "./User";
 
-import * as ppath from "path";
-import { HotRouteMethodParameter, PassType } from "hotstaq/build/src/HotRouteMethod";
+import IUserObj from "./object-defs/IUser.json";
 
 /**
  * The User route.
@@ -41,6 +42,11 @@ export class UserRoute extends HotRoute
 			email: string;
 			password: string;
 		};
+	/**
+	 * If set to true, this will not validate the inputs. This should be set if 
+	 * validations for every endpoint are already occurring outside of this module.
+	 */
+	alreadyValidatedInputs: boolean;
 
 	constructor (api: HotAPI, route: string = "users")
 	{
@@ -51,6 +57,7 @@ export class UserRoute extends HotRoute
 				email: "test3@freelight.org",
 				password: "se45se45sdfrg3456"
 			};
+		this.alreadyValidatedInputs = false;
 
 		this.onRegisteringRoute = async (db: HotDBMySQL) =>
 			{
@@ -91,8 +98,7 @@ export class UserRoute extends HotRoute
 				let userObjectDesc: HotRouteMethodParameter = {
 					"type": "object",
 					"description": "The user object.",
-					// @ts-ignore
-					"parameters": await HotStaq.convertInterfaceToRouteParameters (ppath.normalize (`${__dirname}/../../src/User.ts`), "IUser")
+					"parameters": IUserObj as HotRouteMethodParameterMap
 				};
 
 				this.addMethod ({
@@ -369,6 +375,30 @@ export class UserRoute extends HotRoute
 	}
 
 	/**
+	 * A wrapper function for getParam
+	 */
+	protected getParam (validate: HotValidationType | HotValidation, name: string, objWithParam: any, 
+		request: ServerRequest, required?: boolean, throwException?: boolean, strict?: boolean): Promise<any>
+	{
+		if (this.alreadyValidatedInputs === true)
+			return (objWithParam[name]);
+
+		return (HotStaq.getParam (validate, name, objWithParam, request, required, throwException, strict));
+	}
+
+	/**
+	 * A wrapper function for getParamDefault
+	 */
+	protected getParamDefault (validate: HotValidationType | HotValidation, name: string, objWithParam: any, 
+		defaultValue: any, request: ServerRequest, strict?: boolean): Promise<any>
+	{
+		if (this.alreadyValidatedInputs === true)
+			return (objWithParam[name]);
+
+		return (HotStaq.getParamDefault (validate, name, objWithParam, defaultValue, request, strict));
+	}
+
+	/**
 	 * The user to register. By default, the user object that is returned 
 	 * will not have password, passwordSalt, or verifyCode set. To access 
 	 * the result of verifyCode, you can access it via onServerPostExecute 
@@ -379,15 +409,15 @@ export class UserRoute extends HotRoute
 	 */
 	protected async register (req: ServerRequest): Promise<any>
 	{
-		const user: User = HotStaq.getParam ("user", req.jsonObj, true);
+		const user: User = await this.getParam ((<HotValidationType>"IUser"), "user", req.jsonObj, req, true);
 
-		HotStaq.getParam ("email", user, true);
-		HotStaq.getParam ("password", user, true);
+		this.getParam (HotValidationType.Email, "email", user, req, true);
+		HotStaq.getParamUnsafe ("password", user, true);
 
 		let verifyCodeOverride: string = "";
 
 		if (this.connection.processor.mode === Hot.DeveloperMode.Development)
-			verifyCodeOverride = HotStaq.getParamDefault ("verifyCodeOverride", req.jsonObj, "");
+			verifyCodeOverride = await this.getParamDefault (HotValidationType.UUID, "verifyCodeOverride", req.jsonObj, "", req);
 
 		let newUser: User = new User (user);
 
@@ -414,10 +444,10 @@ export class UserRoute extends HotRoute
 	 */
 	protected async login (req: ServerRequest): Promise<User>
 	{
-		const user: User = HotStaq.getParam ("user", req.jsonObj);
+		const user: User = await this.getParam ((<HotValidationType>"IUser"), "user", req.jsonObj, req);
 
-		const email: string = HotStaq.getParam ("email", user);
-		const password: string = HotStaq.getParam ("password", user);
+		const email: string = await this.getParam (HotValidationType.Email, "email", user, req);
+		const password: string = await HotStaq.getParamUnsafe ("password", user);
 		const ip: string = (<string>req.req.headers["x-forwarded-for"]) || req.req.socket.remoteAddress;
 
 		let userInfo: User = await User.login (this.db, ip, email, password, false);
@@ -436,8 +466,8 @@ export class UserRoute extends HotRoute
 	 */
 	protected async verifyUser (req: ServerRequest): Promise<any>
 	{
-		const email: string = HotStaq.getParam ("email", req.jsonObj);
-		const verificationCode: string = HotStaq.getParam ("verificationCode", req.jsonObj);
+		const email: string = await this.getParam (HotValidationType.Email, "email", req.jsonObj, req);
+		const verificationCode: string = await HotStaq.getParamUnsafe ("verificationCode", req.jsonObj);
 
 		await User.verifyUser (this.db, email, verificationCode);
 
@@ -455,7 +485,7 @@ export class UserRoute extends HotRoute
 	 */
 	protected async logOut (req: ServerRequest): Promise<any>
 	{
-		const jwtToken: string = HotStaq.getParam ("jwtToken", req.jsonObj);
+		const jwtToken: string = HotStaq.getParamUnsafe ("jwtToken", req.jsonObj);
 
 		await User.logOut (this.db, jwtToken);
 
@@ -476,11 +506,11 @@ export class UserRoute extends HotRoute
 	 */
 	protected async forgotPassword (req: ServerRequest): Promise<boolean>
 	{
-		const email: string = HotStaq.getParam ("email", req.jsonObj);
+		const email: string = await this.getParam (HotValidationType.Email, "email", req.jsonObj, req);
 		let verifyCodeOverride: string = "";
 
 		if (this.connection.processor.mode === Hot.DeveloperMode.Development)
-			verifyCodeOverride = HotStaq.getParamDefault ("verifyCodeOverride", req.jsonObj, "");
+			verifyCodeOverride = HotStaq.getParamDefaultUnsafe ("verifyCodeOverride", req.jsonObj, "");
 
 		const emailConfig: EmailConfig = this.emailConfigs["forgotPassword"];
 
@@ -497,9 +527,9 @@ export class UserRoute extends HotRoute
 	 */
 	protected async verifyForgotPasswordCode (req: ServerRequest): Promise<any>
 	{
-		const email: string = HotStaq.getParam ("email", req.jsonObj);
-		const verificationCode: string = HotStaq.getParam ("verificationCode", req.jsonObj);
-		const newPassword: string = HotStaq.getParam ("newPassword", req.jsonObj);
+		const email: string = await this.getParam (HotValidationType.Email, "email", req.jsonObj, req);
+		const verificationCode: string = HotStaq.getParamUnsafe ("verificationCode", req.jsonObj);
+		const newPassword: string = HotStaq.getParamUnsafe ("newPassword", req.jsonObj);
 
 		await User.resetForgottenPassword (this.db, email, verificationCode, newPassword);
 

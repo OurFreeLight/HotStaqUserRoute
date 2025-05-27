@@ -12,62 +12,77 @@ export interface IUser
 {
 	/**
 	 * Is the user enabled?
+	 * @valid boolean
 	 */
 	enabled?: boolean;
 	/**
 	 * The id.
+	 * @valid UUID
 	 */
 	id?: string;
 	/**
 	 * The user type.
+	 * @valid Text
 	 */
 	userType?: string;
 	/**
 	 * The user's display name.
+	 * @valid Text
 	 */
 	displayName?: string;
 	/**
 	 * The user's first name.
+	 * @valid Text
 	 */
 	firstName?: string;
 	/**
 	 * The user's last name.
+	 * @valid Text
 	 */
 	lastName?: string;
 	/**
 	 * The email.
+	 * @valid Email
 	 */
 	email?: string;
 	/**
 	 * The password.
+	 * @valid Ignore
 	 */
 	password?: string;
 	/**
 	 * The password salt.
+	 * @valid Delete
 	 */
 	passwordSalt?: string;
 	/**
 	 * The verification code.
+	 * @valid UUID
 	 */
 	verifyCode?: string;
 	/**
 	 * The registered date.
+	 * @valid Date
 	 */
 	registeredDate?: Date;
 	/**
 	 * The login date.
+	 * @valid Date
 	 */
 	loginDate?: Date;
 	/**
 	 * Indicates if the account has been verified.
+	 * @valid boolean
 	 */
 	verified?: boolean;
 	/**
-	 * The player's ip.
+	 * The user's ip.
+	 * @valid IP
 	 */
 	ip?: string;
 	/**
-	 * The player's JWT token.
+	 * The user's JWT token.
+	 * @valid Ignore
 	 */
 	jwtToken?: string;
 }
@@ -172,11 +187,11 @@ export class User implements IUser
 	 */
 	verified: boolean;
 	/**
-	 * The player's ip.
+	 * The user's ip.
 	 */
 	ip: string;
 	/**
-	 * The player's JWT token.
+	 * The user's JWT token.
 	 */
 	jwtToken: string;
 	/**
@@ -394,13 +409,13 @@ export class User implements IUser
 	/**
 	 * Seed the users table. This performs an insert for multiple users on the users table.
 	 * 
-	 * @param testPlayers The test players to seed. If the array is empty, it will use the default test players.
+	 * @param testUsers The test users to seed. If the array is empty, it will use the default test users.
 	 */
-	static async seedUsers (db: HotDB, testPlayers: User[] = []): Promise<void>
+	static async seedUsers (db: HotDB, testUsers: User[] = []): Promise<void>
 	{
-		if (testPlayers.length < 1)
+		if (testUsers.length < 1)
 		{
-			testPlayers = [
+			testUsers = [
 					new User ({
 						firstName: "John",
 						lastName: "Doe",
@@ -427,11 +442,11 @@ export class User implements IUser
 				];
 		}
 
-		for (let iIdx = 0; iIdx < testPlayers.length; iIdx++)
+		for (let iIdx = 0; iIdx < testUsers.length; iIdx++)
 		{
-			let testPlayer = testPlayers[iIdx];
+			let testUser = testUsers[iIdx];
 
-			await testPlayer.register (db);
+			await testUser.register (db);
 		}
 	}
 
