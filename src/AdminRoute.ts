@@ -61,6 +61,7 @@ export class AdminRoute extends UserRoute
 		
 				this.addMethod ({
 						"name": "editUser",
+						"tags": [routeName],
 						"onServerExecute": this.editUser,
 						"description": `Edit a user. The id set in the user object that is passed will be the id of the user that is edited.`,
 						"parameters": {
@@ -76,6 +77,7 @@ export class AdminRoute extends UserRoute
 					});
 				this.addMethod ({
 						"name": "deleteUser",
+						"tags": [routeName],
 						"onServerExecute": this.deleteUser,
 						"description": `Delete a user. The id set in the user object that is passed will be the id of the user that is deleted.`,
 						"parameters": {
@@ -91,6 +93,7 @@ export class AdminRoute extends UserRoute
 					});
 				this.addMethod ({
 						"name": "changePassword",
+						"tags": [routeName],
 						"onServerExecute": this.changePassword,
 						"description": `Change a user's password. The id set in the user object that is passed will be the id of the user that has it's password changed.`,
 						"parameters": {
@@ -110,6 +113,7 @@ export class AdminRoute extends UserRoute
 					});
 				this.addMethod ({
 						"name": "getUser",
+						"tags": [routeName],
 						"onServerExecute": this.getUser,
 						"description": `Get a user.`,
 						"parameters": {
@@ -133,6 +137,7 @@ export class AdminRoute extends UserRoute
 					});
 				this.addMethod ({
 						"name": "listUsers",
+						"tags": [routeName],
 						"onServerExecute": this.listUsers,
 						"description": `Lists all users. This is meant to be performed by trusted admins or moderators.`,
 						"parameters": {
@@ -184,6 +189,7 @@ export class AdminRoute extends UserRoute
 					});
 					this.addMethod ({
 							"name": "impersonate",
+							"tags": [routeName],
 							"onServerExecute": this.impersonate,
 							"description": `Login as another user. Only admins can use this.`,
 							"parameters": {
