@@ -4,8 +4,8 @@ import { HotRoute, ServerRequest, HotTestDriver, HotStaq, HotServerType,
 	HotDBMySQL, ConnectionStatus, HotAPI, HotDBType, HttpError, 
 	HotRouteMethodParameter, PassType, 
 	HotRouteMethodParameterMap,
-	HotValidationType,
-	HotValidation} from "hotstaq";
+	HotValidation,
+	ValidationOptions} from "hotstaq";
 import { IJWTToken, IUser, User } from "./User";
 import { UserRoute } from "./UserRoute";
 
@@ -224,25 +224,25 @@ export class AdminRoute extends UserRoute
 	/**
 	 * A wrapper function for getParam
 	 */
-	protected getParam (validate: HotValidationType | HotValidation, name: string, objWithParam: any, 
+	protected getParam (validate: string | HotValidation, name: string, objWithParam: any, 
 		request: ServerRequest, required?: boolean, throwException?: boolean, strict?: boolean): Promise<any>
 	{
 		if (this.alreadyValidatedInputs === true)
 			return (objWithParam[name]);
 
-		return (HotStaq.getParam (validate, name, objWithParam, request, required, throwException, strict));
+		return (HotStaq.getParam (validate, name, objWithParam, request, required, throwException, new ValidationOptions (strict)));
 	}
 
 	/**
 	 * A wrapper function for getParamDefault
 	 */
-	protected getParamDefault (validate: HotValidationType | HotValidation, name: string, objWithParam: any, 
+	protected getParamDefault (validate: string | HotValidation, name: string, objWithParam: any, 
 		defaultValue: any, request: ServerRequest, strict?: boolean): Promise<any>
 	{
 		if (this.alreadyValidatedInputs === true)
 			return (objWithParam[name]);
 
-		return (HotStaq.getParamDefault (validate, name, objWithParam, defaultValue, request, strict));
+		return (HotStaq.getParamDefault (validate, name, objWithParam, defaultValue, request, new ValidationOptions (strict)));
 	}
 
 	/**
@@ -290,7 +290,7 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const userObj: IUser = await this.getParam ((<HotValidationType>"IUser"), "user", req.jsonObj, req);
+		const userObj: IUser = await this.getParam ("IUser", "user", req.jsonObj, req);
 		const user: User = new User (userObj);
 
 		await User.editUser (this.db, user);
@@ -305,7 +305,7 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const userObj: IUser = await this.getParam ((<HotValidationType>"IUser"), "user", req.jsonObj, req);
+		const userObj: IUser = await this.getParam ("IUser", "user", req.jsonObj, req);
 		const user: User = new User (userObj);
 
 		await User.deleteUser (this.db, user);
@@ -320,9 +320,9 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const userObj: IUser = await this.getParam ((<HotValidationType>"IUser"), "user", req.jsonObj, req);
+		const userObj: IUser = await this.getParam ("IUser", "user", req.jsonObj, req);
 		const user: User = new User (userObj);
-		const newPassword: string = await this.getParam ((<HotValidationType>"IUser"), "newPassword", req.jsonObj, req);
+		const newPassword: string = await this.getParam ("IUser", "newPassword", req.jsonObj, req);
 
 		await User.changePassword (this.db, user, newPassword);
 
@@ -336,7 +336,7 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const id: string = await this.getParam ((<HotValidationType>"IUser"), "id", req.jsonObj, req);
+		const id: string = await this.getParam ("IUser", "id", req.jsonObj, req);
 
 		let user = await User.getUserById (this.db, id, false);
 
@@ -352,10 +352,10 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const search: string = await this.getParamDefault ((<HotValidationType>"IUser"), "search", req.jsonObj, null, req);
-		const offset: number = await this.getParamDefault ((<HotValidationType>"IUser"), "offset", req.jsonObj, 0, req);
-		const limit: number = await this.getParamDefault ((<HotValidationType>"IUser"), "limit", req.jsonObj, 20, req);
-		let orderBy: string = await this.getParamDefault ((<HotValidationType>"IUser"), "orderBy", req.jsonObj, "display_name", req);
+		const search: string = await this.getParamDefault ("IUser", "search", req.jsonObj, null, req);
+		const offset: number = await this.getParamDefault ("IUser", "offset", req.jsonObj, 0, req);
+		const limit: number = await this.getParamDefault ("IUser", "limit", req.jsonObj, 20, req);
+		let orderBy: string = await this.getParamDefault ("IUser", "orderBy", req.jsonObj, "display_name", req);
 		
 		if (limit > this.maxLimit)
 			throw new Error (`Limit cannot exceed ${this.maxLimit}`);
@@ -422,8 +422,8 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const user: User = await this.getParam ((<HotValidationType>"IUser"), "user", req.jsonObj, req);
-		const email: string = await this.getParam ((<HotValidationType>"IUser"), "email", user, req);
+		const user: User = await this.getParam ("IUser", "user", req.jsonObj, req);
+		const email: string = await this.getParam ("IUser", "email", user, req);
 		const ip: string = (<string>req.req.headers["x-forwarded-for"]) || req.req.socket.remoteAddress;
 
 		let userInfo: User = await User.login (this.db, ip, email, "", false, true);
