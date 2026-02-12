@@ -1046,7 +1046,7 @@ export class User implements IUser
 			let query = `update users set verified = 1 where email = ?`;
 
 			if (db.type === HotDBType.Postgres)
-				query = `update users set verified = 1 where email = $1`;
+				query = `update users set verified = TRUE where email = $1`;
 
 			let result = await db.query (query, [email]);
 
