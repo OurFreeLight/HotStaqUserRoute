@@ -1,13 +1,14 @@
 {
   "name": "@hotstaq/userroute",
   "description": "A user route for HotStaq. Allows users to be created/edited/deleted securely.",
-  "version": "0.6.5",
+  "version": "0.6.18",
   "main": "build/src/index.js",
   "scripts": {
     "test": "hotstaq --dev --env-file .env run --server-type api --api-test",
     "build": "tsc --build ./tsconfig.json",
     "build-web": "hotstaq generate",
     "build-doc": "hotstaq generate --generate-type openapi-3.0.0-yaml",
+    "build-interfaces": "hotstaq build --interfaces --interface IUser --interfaces-out ./src/object-defs/",
     "prepublishOnly": "npm run build-doc && npm run build && npm run build-web"
   },
   "keywords": [],
@@ -17,7 +18,7 @@
     "@aws-sdk/client-ses": "^3.478.0",
     "bcrypt": "^5.1.0",
     "dotenv": "^10.0.0",
-    "hotstaq": "^0.8.101",
+    "hotstaq": "^0.8.130",
     "jsonwebtoken": "^9.0.0"
   },
   "devDependencies": {
@@ -35,5 +36,9 @@
     "@types/uuid": "^8.3.4",
     "ts-loader": "^7.0.5",
     "tslib": "^2.5.0"
+  },
+  "overrides": {
+    "diff": "^8.0.3",
+    "tar": "^7.5.7"
   }
 }

@@ -1,9 +1,15 @@
 import * as ppath from "path";
 
-import { HotRoute, ServerRequest, HotTestDriver, HotStaq, HotServerType, HotDBMySQL, ConnectionStatus, HotAPI, HotDBType } from "hotstaq";
+import { HotRoute, ServerRequest, HotTestDriver, HotStaq, HotServerType, 
+	HotDBMySQL, ConnectionStatus, HotAPI, HotDBType, HttpError, 
+	HotRouteMethodParameter, PassType, 
+	HotRouteMethodParameterMap,
+	HotValidation,
+	ValidationOptions} from "hotstaq";
 import { IJWTToken, IUser, User } from "./User";
 import { UserRoute } from "./UserRoute";
-import { HotRouteMethodParameter, PassType } from "hotstaq/build/src/HotRouteMethod";
+
+import IUserObj from "./object-defs/IUser.json";
 
 /**
  * Admin route.
@@ -20,6 +26,10 @@ export class AdminRoute extends UserRoute
 	 */
 	methodsRequireAuthType: string;
 	/**
+	 * The maximum limit for rows that can be returned.
+	 */
+	maxLimit: number = 1000;
+	/**
 	 * Executes before the route is registered with the web server.
 	 */
 	onAdminPreRegisterRoute: () => Promise<void>;
@@ -27,24 +37,31 @@ export class AdminRoute extends UserRoute
 	 * The database connection.
 	 */
 	db: HotDBMySQL;
+	/**
+	 * If set to true, this will not validate the inputs. This should be set if 
+	 * validations for every endpoint are already occurring outside of this module.
+	 */
+	alreadyValidatedInputs: boolean;
 
 	constructor (api: HotAPI, routeName: string = "admins")
 	{
 		super (api, routeName);
 
 		this.methodsRequireAuthType = "admin";
+		this.maxLimit = 1000;
+		this.alreadyValidatedInputs = false;
 
 		this.onAdminPreRegisterRoute = async () =>
 			{
 				let userObjectDesc: HotRouteMethodParameter = {
 						"type": "object",
 						"description": "The user object.",
-						// @ts-ignore
-						"parameters": await HotStaq.convertInterfaceToRouteParameters (ppath.normalize (`${__dirname}/../../src/User.ts`), "IUser")
+						"parameters": IUserObj as HotRouteMethodParameterMap
 					};
 		
 				this.addMethod ({
 						"name": "editUser",
+						"tags": [routeName],
 						"onServerExecute": this.editUser,
 						"description": `Edit a user. The id set in the user object that is passed will be the id of the user that is edited.`,
 						"parameters": {
@@ -60,6 +77,7 @@ export class AdminRoute extends UserRoute
 					});
 				this.addMethod ({
 						"name": "deleteUser",
+						"tags": [routeName],
 						"onServerExecute": this.deleteUser,
 						"description": `Delete a user. The id set in the user object that is passed will be the id of the user that is deleted.`,
 						"parameters": {
@@ -75,6 +93,7 @@ export class AdminRoute extends UserRoute
 					});
 				this.addMethod ({
 						"name": "changePassword",
+						"tags": [routeName],
 						"onServerExecute": this.changePassword,
 						"description": `Change a user's password. The id set in the user object that is passed will be the id of the user that has it's password changed.`,
 						"parameters": {
@@ -94,6 +113,7 @@ export class AdminRoute extends UserRoute
 					});
 				this.addMethod ({
 						"name": "getUser",
+						"tags": [routeName],
 						"onServerExecute": this.getUser,
 						"description": `Get a user.`,
 						"parameters": {
@@ -117,8 +137,9 @@ export class AdminRoute extends UserRoute
 					});
 				this.addMethod ({
 						"name": "listUsers",
+						"tags": [routeName],
 						"onServerExecute": this.listUsers,
-						"description": `Lists all users.`,
+						"description": `Lists all users. This is meant to be performed by trusted admins or moderators.`,
 						"parameters": {
 							"search": {
 								"type": "string",
@@ -126,15 +147,35 @@ export class AdminRoute extends UserRoute
 								"description": "Searches for a user by their first name, last name, or email."
 							},
 							"offset": {
-								"type": "int",
+								"type": "integer",
 								"required": false
 							},
 							"limit": {
-								"type": "int",
-								"required": false
+								"type": "integer",
+								"required": false,
+								"description": `The number of users to return. The maximum is ${this.maxLimit}`
+							},
+							"orderBy": {
+								"type": "string",
+								"required": false,
+								"description": "The column to order by."
 							}
 						},
-						"returns": "Returns the list of users.",
+						"returns": {
+								"type": "object",
+								"description": "Returns the list of users.",
+								"parameters": {
+									"length": {
+										"type": "integer",
+										"description": "The number of users returned."
+									},
+									"data": {
+										"type": "array",
+										"description": "The list of users.",
+										"items": userObjectDesc
+									}
+								}
+							},
 						"testCases": [
 							"listUsersTest",
 							async (driver: HotTestDriver): Promise<any> =>
@@ -146,12 +187,62 @@ export class AdminRoute extends UserRoute
 							}
 						]
 					});
+					this.addMethod ({
+							"name": "impersonate",
+							"tags": [routeName],
+							"onServerExecute": this.impersonate,
+							"description": `Login as another user. Only admins can use this.`,
+							"parameters": {
+								"user": {
+									"type": "object",
+									"required": true,
+									"parameters": {
+										"email": {
+												"type": "string",
+												"required": true,
+												"description": "The user's email."
+											}
+										}
+									}
+							},
+							"returns": "The JWT token of the logged in user.",
+							"testCases": [
+								"impersonateTest",
+								async (driver: HotTestDriver): Promise<any> =>
+								{
+								}
+							]
+						});
 			};
 		this.onPreRegister = async () =>
 			{
 				await this.onUserPreRegisterRoute ();
 				await this.onAdminPreRegisterRoute ();
 			};
+	}
+
+	/**
+	 * A wrapper function for getParam
+	 */
+	protected getParam (validate: string | HotValidation, name: string, objWithParam: any, 
+		request: ServerRequest, required?: boolean, throwException?: boolean, strict?: boolean): Promise<any>
+	{
+		if (this.alreadyValidatedInputs === true)
+			return (objWithParam[name]);
+
+		return (HotStaq.getParam (validate, name, objWithParam, request, required, throwException, new ValidationOptions (strict)));
+	}
+
+	/**
+	 * A wrapper function for getParamDefault
+	 */
+	protected getParamDefault (validate: string | HotValidation, name: string, objWithParam: any, 
+		defaultValue: any, request: ServerRequest, strict?: boolean): Promise<any>
+	{
+		if (this.alreadyValidatedInputs === true)
+			return (objWithParam[name]);
+
+		return (HotStaq.getParamDefault (validate, name, objWithParam, defaultValue, request, new ValidationOptions (strict)));
 	}
 
 	/**
@@ -170,12 +261,12 @@ export class AdminRoute extends UserRoute
 	{
 		if (this.methodsRequireAuthType !== "")
 		{
-			const jwtToken: string = HotStaq.getParam ("jwtToken", req.jsonObj);
+			const jwtToken: string = HotStaq.getParamUnsafe ("jwtToken", req.jsonObj);
 			const decoded: IJWTToken = await User.decodeJWTToken (jwtToken);
 			const authUser: IUser = decoded.user;
 
 			if (authUser.userType !== this.methodsRequireAuthType)
-				throw new Error (`Only user of type ${this.methodsRequireAuthType} is allowed to use this method.`);
+				throw new HttpError (`Only user of type ${this.methodsRequireAuthType} is allowed to use this method.`, 401);
 		}
 	}
 
@@ -199,7 +290,7 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const userObj: IUser = HotStaq.getParam ("user", req.jsonObj);
+		const userObj: IUser = await this.getParam ("IUser", "user", req.jsonObj, req);
 		const user: User = new User (userObj);
 
 		await User.editUser (this.db, user);
@@ -214,7 +305,7 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const userObj: IUser = HotStaq.getParam ("user", req.jsonObj);
+		const userObj: IUser = await this.getParam ("IUser", "user", req.jsonObj, req);
 		const user: User = new User (userObj);
 
 		await User.deleteUser (this.db, user);
@@ -229,9 +320,9 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const userObj: IUser = HotStaq.getParam ("user", req.jsonObj);
+		const userObj: IUser = await this.getParam ("IUser", "user", req.jsonObj, req);
 		const user: User = new User (userObj);
-		const newPassword: string = HotStaq.getParam ("newPassword", req.jsonObj);
+		const newPassword: string = await this.getParam ("IUser", "newPassword", req.jsonObj, req);
 
 		await User.changePassword (this.db, user, newPassword);
 
@@ -245,7 +336,7 @@ export class AdminRoute extends UserRoute
 	{
 		await this.checkAuth (req);
 
-		const id: string = HotStaq.getParam ("id", req.jsonObj);
+		const id: string = await this.getParam ("IUser", "id", req.jsonObj, req);
 
 		let user = await User.getUserById (this.db, id, false);
 
@@ -253,41 +344,66 @@ export class AdminRoute extends UserRoute
 	}
 
 	/**
-	 * List users.
+	 * List users. This is meant to be performed by trusted admins or moderators.
 	 * 
 	 * This performs a select on the users table.
 	 */
-	protected async listUsers (req: ServerRequest): Promise<any>
+	protected async listUsers (req: ServerRequest): Promise<{ length: number; data: any[]; }>
 	{
 		await this.checkAuth (req);
 
-		const search: string = HotStaq.getParamDefault ("search", req.jsonObj, null);
-		const offset: number = HotStaq.getParamDefault ("offset", req.jsonObj, 0);
-		const limit: number = HotStaq.getParamDefault ("limit", req.jsonObj, 20);
+		const search: string = await this.getParamDefault ("IUser", "search", req.jsonObj, null, req);
+		const offset: number = await this.getParamDefault ("IUser", "offset", req.jsonObj, 0, req);
+		const limit: number = await this.getParamDefault ("IUser", "limit", req.jsonObj, 20, req);
+		let orderBy: string = await this.getParamDefault ("IUser", "orderBy", req.jsonObj, "display_name", req);
+		
+		if (limit > this.maxLimit)
+			throw new Error (`Limit cannot exceed ${this.maxLimit}`);
 
-		let query: string = `SELECT * FROM users LIMIT ?, ?;`;
+		orderBy = `u.${orderBy}`;
+
+		let query: string = `SELECT u.*, COUNT(*) OVER() AS total_count FROM users u ORDER BY ? LIMIT ?, ?;`;
 
 		if (this.db.type === HotDBType.Postgres)
-			query = `SELECT * FROM users OFFSET $1 LIMIT $2;`;
+			query = `SELECT u.*, COUNT(*) OVER() AS total_count FROM users u ORDER BY $1 OFFSET $2 LIMIT $3;`;
 
-		let args: any[] = [offset, limit];
+		let args: any[] = [orderBy, offset, limit];
 
 		if (search != null)
 		{
-			query = `SELECT * FROM users WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? LIMIT ?, ?;`;
+			query = `SELECT 
+				u.*,
+				COUNT(*) OVER() AS total_count
+				FROM users u
+				WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR display_name LIKE $3
+				ORDER BY ? 
+				LIMIT ?, ?;`;
 
 			if (this.db.type === HotDBType.Postgres)
-				query = `SELECT * FROM users WHERE first_name LIKE $1 OR last_name LIKE $2 OR email LIKE $3 OFFSET $4 LIMIT $5;`;
+			{
+				//query = `SELECT * FROM users WHERE first_name LIKE $1 OR last_name LIKE $2 OR email LIKE $3 OFFSET $4 LIMIT $5;`;
+				query = `SELECT 
+					u.*, 
+					COUNT(*) OVER() AS total_count
+					FROM users u
+					WHERE first_name ILIKE $1 OR last_name ILIKE $2 OR email ILIKE $3 OR display_name ILIKE $3
+					ORDER BY $4 
+					OFFSET $5 LIMIT $6;`;
+			}
 
-			args = [`%${search}%`, `%${search}%`, `%${search}%`, offset, limit];
+			args = [`%${search}%`, `%${search}%`, `%${search}%`, orderBy, offset, limit];
 		}
 
 		let results = await this.db.query (query, args);
 
 		if (results.error != null)
-			throw new Error (`Unable to list users: ${results.error}`);
+			throw new HttpError (`Unable to list users: ${results.error}`);
 
 		let users: IUser[] = [];
+		let length: number = 0;
+
+		if (results.results.length > 0)
+			length = results.results[0].total_count;
 
 		for (let i = 0; i < results.results.length; i++)
 		{
@@ -296,6 +412,25 @@ export class AdminRoute extends UserRoute
 			users.push (User.getUserFromResult (row));
 		}
 
-		return (users);
+		return ({ length: length, data: users });
+	}
+
+	/**
+	 * Login as another user. Only admins can use this.
+	 */
+	protected async impersonate (req: ServerRequest): Promise<any>
+	{
+		await this.checkAuth (req);
+
+		const user: User = await this.getParam ("IUser", "user", req.jsonObj, req);
+		const email: string = await this.getParam ("IUser", "email", user, req);
+		const ip: string = (<string>req.req.headers["x-forwarded-for"]) || req.req.socket.remoteAddress;
+
+		let userInfo: User = await User.login (this.db, ip, email, "", false, true);
+
+		req.passObject.passType = PassType.Ignore;
+		req.passObject.jsonObj = { ip: ip, verifyCode: userInfo.verifyCode, user: userInfo };
+
+		return (userInfo);
 	}
 }
