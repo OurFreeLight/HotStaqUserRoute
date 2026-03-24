@@ -1,0 +1,30 @@
+# @hotstaq/userroute — GitLab CI/CD Pipeline
+# Triggers on every push to main.
+# Builds TypeScript and publishes to npm.
+# Requires NPM_TOKEN set as a GitLab CI/CD variable.
+
+stages:
+  - build
+  - publish
+
+build:
+  stage: build
+  image: node:20-alpine
+  script:
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - build/
+    expire_in: 1 hour
+
+publish:
+  stage: publish
+  image: node:20-alpine
+  dependencies:
+    - build
+  script:
+    - echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+    - npm publish --access public
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
