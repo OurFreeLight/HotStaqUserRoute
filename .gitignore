@@ -2,7 +2,7 @@ build/
 build-web/
 ./app/
 
-src/object-defs/
+# src/object-defs/ # tracked in git - required for build
 
 .nyc_output/
 

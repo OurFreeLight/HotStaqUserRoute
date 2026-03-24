@@ -1,0 +1,152 @@
+{
+  "enabled": {
+    "type": "boolean",
+    "required": false,
+    "description": "Is the user enabled?",
+    "validations": [
+      {
+        "type": "boolean"
+      }
+    ]
+  },
+  "id": {
+    "type": "string",
+    "required": false,
+    "description": "The id.",
+    "validations": [
+      {
+        "type": "UUID"
+      }
+    ]
+  },
+  "userType": {
+    "type": "string",
+    "required": false,
+    "description": "The user type.",
+    "validations": [
+      {
+        "type": "Text"
+      }
+    ]
+  },
+  "displayName": {
+    "type": "string",
+    "required": false,
+    "description": "The user's display name.",
+    "validations": [
+      {
+        "type": "Text"
+      }
+    ]
+  },
+  "firstName": {
+    "type": "string",
+    "required": false,
+    "description": "The user's first name.",
+    "validations": [
+      {
+        "type": "Text"
+      }
+    ]
+  },
+  "lastName": {
+    "type": "string",
+    "required": false,
+    "description": "The user's last name.",
+    "validations": [
+      {
+        "type": "Text"
+      }
+    ]
+  },
+  "email": {
+    "type": "string",
+    "required": false,
+    "description": "The email.",
+    "validations": [
+      {
+        "type": "Email"
+      }
+    ]
+  },
+  "password": {
+    "type": "string",
+    "required": false,
+    "description": "The password.",
+    "validations": [
+      {
+        "type": "Ignore"
+      }
+    ]
+  },
+  "passwordSalt": {
+    "type": "string",
+    "required": false,
+    "description": "The password salt.",
+    "validations": [
+      {
+        "type": "Delete"
+      }
+    ]
+  },
+  "verifyCode": {
+    "type": "string",
+    "required": false,
+    "description": "The verification code.",
+    "validations": [
+      {
+        "type": "UUID"
+      }
+    ]
+  },
+  "registeredDate": {
+    "type": "string",
+    "required": false,
+    "description": "The registered date.",
+    "validations": [
+      {
+        "type": "Date"
+      }
+    ]
+  },
+  "loginDate": {
+    "type": "string",
+    "required": false,
+    "description": "The login date.",
+    "validations": [
+      {
+        "type": "Date"
+      }
+    ]
+  },
+  "verified": {
+    "type": "boolean",
+    "required": false,
+    "description": "Indicates if the account has been verified.",
+    "validations": [
+      {
+        "type": "boolean"
+      }
+    ]
+  },
+  "ip": {
+    "type": "string",
+    "required": false,
+    "description": "The user's ip.",
+    "validations": [
+      {
+        "type": "IP"
+      }
+    ]
+  },
+  "jwtToken": {
+    "type": "string",
+    "required": false,
+    "description": "The user's JWT token.",
+    "validations": [
+      {
+        "type": "Ignore"
+      }
+    ]
+  }
+}
