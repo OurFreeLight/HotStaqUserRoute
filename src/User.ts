@@ -184,6 +184,13 @@ export class User implements IUser
 	 */
 	static jwtSecretKey: string = process.env["JWT_SECRET_KEY"] || "";
 	/**
+	 * When set to true, emails will be hashed using HMAC-SHA256 before being stored
+	 * or queried in the database. Requires EMAIL_HASH_SECRET env var to be set.
+	 * WARNING: Once enabled on a database with existing users, existing plaintext
+	 * email rows must be migrated before login will work for those users.
+	 */
+	static emailHashingEnabled: boolean = (process.env["EMAIL_HASHING_ENABLED"] === "1");
+	/**
 	 * The minimum length of an email.
 	 */
 	static minEmailLength: number = 3;
@@ -452,6 +459,24 @@ export class User implements IUser
 	}
 
 	/**
+	 * Hash an email using HMAC-SHA256 so it can be stored and looked up securely
+	 * without storing the plaintext address. Requires EMAIL_HASH_SECRET env var.
+	 * Returns the plaintext email unchanged if emailHashingEnabled is false.
+	 */
+	public static hashEmail (email: string): string
+	{
+		if (User.emailHashingEnabled === false)
+			return (email);
+
+		const secret: string = process.env["EMAIL_HASH_SECRET"] || "";
+
+		if (secret === "")
+			throw new Error (`EMAIL_HASHING_ENABLED is set but EMAIL_HASH_SECRET is not configured!`);
+
+		return (crypto.createHmac ("sha256", secret).update (email.toLowerCase ()).digest ("hex"));
+	}
+
+	/**
 	 * Check if the display name is valid.
 	 */
 	public static validateDisplayName (displayName: string): boolean
@@ -557,6 +582,10 @@ export class User implements IUser
 				throw new Error (`Invalid email.`);
 		}
 
+		// Preserve plaintext email for sending verification emails, then hash for storage.
+		const plaintextEmail: string = this.email;
+		this.email = User.hashEmail (this.email);
+
 		if (User.displayNameValidateRegEx != null)
 		{
 			if (User.validateDisplayName (this.displayName) === false)
@@ -640,7 +669,8 @@ export class User implements IUser
 		{
 			const body: string = emailConfig.body (this, this.verifyCode);
 
-			await User.sendEmail (this.email, emailConfig.subject, body, emailConfig);
+			// Use plaintextEmail for delivery — this.email is the hashed value when hashing is enabled.
+			await User.sendEmail (plaintextEmail, emailConfig.subject, body, emailConfig);
 		}
 
 		return (this);
@@ -863,11 +893,17 @@ export class User implements IUser
 			email = email.toLowerCase ();
 
 			foundUser = await User.getUser (db, email, true);
+
+			// getUser hashes the email for lookup; use the stored (possibly hashed) value
+			// for any subsequent update queries.
+			if (foundUser != null)
+				email = foundUser.email;
 		}
 		else
 		{
 			foundUser = ip;
 			foundUser.email = foundUser.email.toLowerCase ();
+			email = foundUser.email;
 		}
 
 		if (foundUser == null)
@@ -1025,7 +1061,8 @@ export class User implements IUser
 			if (db.type === HotDBType.Postgres)
 				query = `update users set verified = 1 where email = $1`;
 
-			let result = await db.query (query, [email]);
+			// Use foundUser.email which is the stored (possibly hashed) value.
+			let result = await db.query (query, [foundUser.email]);
 
 			if (result.error != null)
 				throw new Error (result.error);
@@ -1102,6 +1139,8 @@ export class User implements IUser
 	 */
 	static async forgotPassword (db: HotDB, email: string, emailConfig: EmailConfig = null, verifyCode: string = ""): Promise<string>
 	{
+		// Preserve plaintext email before hashing (needed for email delivery).
+		const plaintextEmail: string = email.toLowerCase ();
 		let user: User = await User.getUser (db, email, true);
 
 		if (user == null)
@@ -1131,7 +1170,8 @@ export class User implements IUser
 		{
 			const body: string = emailConfig.body (user, user.verifyCode);
 
-			await User.sendEmail (user.email, emailConfig.subject, body, emailConfig);
+			// Use plaintextEmail for delivery — user.email is hashed when hashing is enabled.
+			await User.sendEmail (plaintextEmail, emailConfig.subject, body, emailConfig);
 		}
 
 		return (user.verifyCode);
@@ -1251,6 +1291,9 @@ export class User implements IUser
 	 */
 	static async getUser (db: HotDB, email: string, getPassword: boolean = false): Promise<User | null>
 	{
+		// Hash the lookup email to match however it was stored at registration.
+		email = User.hashEmail (email.toLowerCase ());
+
 		let rawDBResults: any = null;
 
 		if (User.onGetUserSelect != null)
